@@ -4,3 +4,5 @@ picamera
 numpy
 RPi.GPIO
 pyserial
+torch
+torchvision

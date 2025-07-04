@@ -145,3 +145,23 @@ shows the predicted card name. Enter the correct name if the prediction
 is wrong and click **Save**. The labeled image is written to
 :file:`dataset/` with spaces replaced by underscores.
 
+
+
+## Обучение нейронной сети
+
+В репозитории имеется простая сверточная сеть для распознавания карт. Данные для обучения берутся из папки :file:`dataset/`, где имя каждого файла является меткой (например, ``Ace_of_Spades.png``). Запустите :mod:`train_model.py`, чтобы обучить или дообучить модель:
+
+```bash
+python train_model.py --dataset dataset --epochs 10
+```
+
+Обученные веса и информация о классах сохраняются в ``model.pt``. Предсказать карту по изображению можно функцией ``recognize_card`` из модуля :mod:`predict`:
+
+```python
+from predict import recognize_card
+
+label = recognize_card("some_image.png")
+print(label)
+```
+
+Аргумент ``--resume`` позволяет продолжить обучение существующей модели, если в ``dataset/`` появились новые изображения.
