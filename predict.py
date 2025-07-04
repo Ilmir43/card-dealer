@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 
@@ -5,9 +7,7 @@ import torch
 from torchvision import transforms
 from PIL import Image
 
-from model import CardClassifier
-
-IMAGE_SIZE = (100, 150)
+from model import create_model, IMAGE_SIZE
 
 _transform = transforms.Compose([
     transforms.Resize(IMAGE_SIZE),
@@ -15,17 +15,17 @@ _transform = transforms.Compose([
 ])
 
 
-def recognize_card(image_path: str | Path, model_path: str = "model.pt", device: Optional[str] = None) -> str:
-    """Load a trained model and predict the card label for ``image_path``."""
+def recognize_card(image_path: str | Path, model_path: str = "model.pt", device: Optional[str] = None) -> dict[str, str]:
+    """Predict the card label and type for a given image."""
     image_path = Path(image_path)
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     checkpoint = torch.load(model_path, map_location=device)
     class_to_idx = checkpoint.get("class_to_idx", {})
     idx_to_class = {v: k for k, v in class_to_idx.items()}
-    model = CardClassifier(num_classes=len(class_to_idx))
+    model = create_model(num_classes=len(class_to_idx))
     state = checkpoint.get("model_state", checkpoint)
-    model.load_state_dict(state)
+    model.load_state_dict(state, strict=False)
     model.to(device)
     model.eval()
     image = Image.open(image_path).convert("RGB")
@@ -33,10 +33,12 @@ def recognize_card(image_path: str | Path, model_path: str = "model.pt", device:
     with torch.no_grad():
         output = model(tensor)
         pred = output.argmax(dim=1).item()
-    return idx_to_class.get(pred, "Unknown")
+    label = idx_to_class.get(pred, "Unknown")
+    card_type = "back" if label.endswith("_back") else "face"
+    return {"type": card_type, "label": label}
 
 
-def main():
+def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description="Predict card from image")
@@ -47,5 +49,5 @@ def main():
     print(result)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - manual execution
     main()
