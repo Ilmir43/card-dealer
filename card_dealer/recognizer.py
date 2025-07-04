@@ -137,6 +137,10 @@ def save_labeled_image(image_path: Path, label: str) -> Path:
     """
 
     image_path = Path(image_path)
+
+    if "/" in label or "\\" in label:
+        raise ValueError(f"Invalid label: {label}")
+
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
 
     base_name = label.replace(" ", "_")

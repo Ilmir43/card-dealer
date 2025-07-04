@@ -1,3 +1,4 @@
+
 from pathlib import Path
 
 import card_dealer.recognizer as recognizer
@@ -52,3 +53,4 @@ def test_multiple_templates(monkeypatch, tmp_path):
 
     assert result == "Ace of Hearts"
     assert len(templates["Ace of Hearts"]) == 2
+
