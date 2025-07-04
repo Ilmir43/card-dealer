@@ -111,3 +111,37 @@ dependencies, run `pytest` from the project root to execute the tests:
 pytest
 ```
 
+## Dataset
+
+The :mod:`card_dealer.recognizer` module expects labeled training
+images in the :file:`dataset/` directory. Each image file name should
+use the pattern ``<label>.<ext>`` where ``<label>`` is the card name and
+``<ext>`` is any supported image extension (for example
+``Ace_of_Spades.png``). Spaces in the label are replaced with
+underscores.
+
+To collect training images manually, start the web interface and follow
+the capture workflow as shown below:
+
+```bash
+python -m card_dealer.webapp
+```
+
+After capturing a card, edit the label field if necessary and press the
+save button. The image is stored inside :file:`dataset/` using the label
+you provided.
+
+## Web interface
+
+The project includes a small Flask application for capturing images and
+confirming their labels. Launch it with:
+
+```bash
+python -m card_dealer.webapp
+```
+
+Navigate to ``http://localhost:5000/`` and capture a card. The page
+shows the predicted card name. Enter the correct name if the prediction
+is wrong and click **Save**. The labeled image is written to
+:file:`dataset/` with spaces replaced by underscores.
+
