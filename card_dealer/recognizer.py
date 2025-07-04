@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import shutil
-from typing import Dict
+from typing import Dict, List
 
 try:  # pragma: no cover - OpenCV/Numpy may not be installed
     import cv2
@@ -27,21 +27,23 @@ DATASET_DIR = Path(__file__).resolve().parent.parent / "dataset"
 
 # Cache for loaded templates so that multiple calls do not repeatedly read the
 # same files from disk.
-_TEMPLATES: Dict[str, "np.ndarray"] | None = None
+_TEMPLATES: Dict[str, List["np.ndarray"]] | None = None
 
 
-def _load_templates() -> Dict[str, "np.ndarray"]:
+def _load_templates() -> Dict[str, List["np.ndarray"]]:
     """Load image templates from :data:`DATASET_DIR`.
 
     The images are expected to be named using the pattern ``"<label>.<ext>"``
-    where ``<label>`` is the card name (e.g. ``"Ace_of_Spades"``).  The
-    function converts each image to grayscale and stores it in a dictionary
-    keyed by the label.
+    where ``<label>`` is the card name (e.g. ``"Ace_of_Spades"``).  When
+    multiple images with the same base name exist, e.g. ``"Ace_of_Spades_1"``,
+    all of them are loaded and stored under the same label.  The function
+    converts each image to grayscale and stores them in a dictionary keyed by
+    the label.
 
     Returns
     -------
     dict
-        Mapping of label to grayscale image arrays.
+        Mapping of label to a list of grayscale image arrays.
     """
 
     global _TEMPLATES
@@ -51,15 +53,17 @@ def _load_templates() -> Dict[str, "np.ndarray"]:
     if cv2 is None:  # pragma: no cover - OpenCV optional
         raise RuntimeError("OpenCV is required for card recognition")
 
-    templates: Dict[str, "np.ndarray"] = {}
+    templates: Dict[str, List["np.ndarray"]] = {}
     if DATASET_DIR.exists():
         for img_path in DATASET_DIR.iterdir():
             if not img_path.is_file():
                 continue
-            label = img_path.stem.replace("_", " ")
+            stem = img_path.stem
+            base = stem.rsplit("_", 1)[0] if stem.rsplit("_", 1)[-1].isdigit() else stem
+            label = base.replace("_", " ")
             img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
             if img is not None:
-                templates[label] = img
+                templates.setdefault(label, []).append(img)
 
     _TEMPLATES = templates
     return templates
@@ -98,14 +102,15 @@ def recognize_card(image_path: Path) -> str:
 
     best_label = "Unknown"
     best_score = -1.0
-    for label, templ in templates.items():
-        if image.shape[0] < templ.shape[0] or image.shape[1] < templ.shape[1]:
-            continue
-        result = cv2.matchTemplate(image, templ, cv2.TM_CCOEFF_NORMED)
-        _min_val, max_val, _min_loc, _max_loc = cv2.minMaxLoc(result)
-        if max_val > best_score:
-            best_score = max_val
-            best_label = label
+    for label, templ_list in templates.items():
+        for templ in templ_list:
+            if image.shape[0] < templ.shape[0] or image.shape[1] < templ.shape[1]:
+                continue
+            result = cv2.matchTemplate(image, templ, cv2.TM_CCOEFF_NORMED)
+            _min_val, max_val, _min_loc, _max_loc = cv2.minMaxLoc(result)
+            if max_val > best_score:
+                best_score = max_val
+                best_label = label
 
     return best_label
 
@@ -147,7 +152,8 @@ def save_labeled_image(image_path: Path, label: str) -> Path:
         counter += 1
 
     shutil.copy(image_path, dest)
-    # Invalidate template cache so the saved image becomes available immediately
+    # Invalidate template cache so the newly saved image becomes available
+    # immediately and multiple templates per label are reloaded correctly
     global _TEMPLATES
     _TEMPLATES = None
     return dest
