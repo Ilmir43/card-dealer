@@ -18,8 +18,10 @@ dataset/                # Captured card images
 templates/              # HTML templates used by the Flask web app
 ```
 
-All modules are currently empty and act as placeholders for future
-implementation.
+Most modules are still placeholders.  The :mod:`card_dealer.camera` module can
+capture a single frame from the default camera, and
+:mod:`card_dealer.servo_controller` contains a very small helper used to
+activate a servo for dispensing cards.
 
 ## Camera configuration
 
