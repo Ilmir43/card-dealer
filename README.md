@@ -21,3 +21,9 @@ templates/              # HTML templates used by the Flask web app
 All modules are currently empty and act as placeholders for future
 implementation.
 
+## Camera configuration
+
+The :mod:`card_dealer.camera` module provides a ``capture_image`` function
+that grabs a single frame from the default camera using ``cv2.VideoCapture``.
+The capture uses device index ``0`` with a resolution of **1280x720** pixels.
+
