@@ -18,6 +18,15 @@ dataset/                # Captured card images
 templates/              # HTML templates used by the Flask web app
 ```
 
+## Dataset
+
+The ``dataset/`` directory stores labeled reference images used by the simple
+template matcher in :mod:`card_dealer.recognizer`.  File names follow the
+``<rank>_of_<suit>.<ext>`` pattern where ``<ext>`` is typically ``png``.  For
+example a picture of the ace of spades would be saved as
+``dataset/Ace_of_Spades.png``.
+
+
 Most modules are still placeholders.  The :mod:`card_dealer.camera` module can
 capture a single frame from the default camera, and
 :mod:`card_dealer.servo_controller` contains a very small helper used to
@@ -92,4 +101,13 @@ controller.cleanup()
 
 These examples can be executed in a Python REPL after installing the
 dependencies.
+
+## Running tests
+
+The repository contains a small test suite.  After installing the
+dependencies, run `pytest` from the project root to execute the tests:
+
+```bash
+pytest
+```
 
