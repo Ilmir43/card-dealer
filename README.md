@@ -23,9 +23,73 @@ capture a single frame from the default camera, and
 :mod:`card_dealer.servo_controller` contains a very small helper used to
 activate a servo for dispensing cards.
 
+## Installation
+
+1. Install **Python 3.9** or newer.
+2. (Optional) Create and activate a virtual environment.
+3. Install the required packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+The main dependencies are ``opencv-python`` (or ``opencv-python-headless`` on a
+headless system), ``flask`` for the web interface, ``picamera`` when using the
+Raspberry Pi camera module, ``numpy`` and the optional ``RPi.GPIO`` and
+``pyserial`` libraries for servo control.
+
 ## Camera configuration
 
 The :mod:`card_dealer.camera` module provides a ``capture_image`` function
 that grabs a single frame from the default camera using ``cv2.VideoCapture``.
 The capture uses device index ``0`` with a resolution of **1280x720** pixels.
+
+## Hardware setup
+
+### Camera
+
+* Connect a USB webcam or Raspberry Pi camera so that it is available as
+  ``/dev/video0``.  If your camera uses a different index adjust the call to
+  :func:`cv2.VideoCapture` in :mod:`card_dealer.camera`.
+* Ensure the camera is capable of 1280x720 resolution or update the resolution
+  in ``capture_image``.
+
+### Servo
+
+``card_dealer.servo_controller`` supports two connection methods:
+
+1. **GPIO PWM** &ndash; pass the GPIO pin number to ``ServoController``.  This
+   requires the ``RPi.GPIO`` library.
+2. **Serial** &ndash; provide the serial port name (e.g. ``/dev/ttyUSB0``).  This
+   requires ``pyserial``.
+
+Wire the servo to your chosen control method and make sure the power supply is
+adequate for the servo current draw.
+
+## Running the program
+
+The repository ships only minimal example code.  A simple test run can capture
+an image and attempt to recognize it:
+
+```python
+from pathlib import Path
+from card_dealer.camera import capture_image
+from card_dealer.recognizer import recognize_card
+
+img = capture_image(Path("test.png"))
+print("Detected card:", recognize_card(img))
+```
+
+To dispense a card using a servo connected to GPIO pin ``11``:
+
+```python
+from card_dealer.servo_controller import ServoController
+
+controller = ServoController(pwm_pin=11)
+controller.dispense_card()
+controller.cleanup()
+```
+
+These examples can be executed in a Python REPL after installing the
+dependencies.
 

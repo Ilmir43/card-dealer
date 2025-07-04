@@ -1,0 +1,6 @@
+flask
+opencv-python
+picamera
+numpy
+RPi.GPIO
+pyserial
