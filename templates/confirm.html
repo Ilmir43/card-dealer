@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Confirm Card</title>
+  </head>
+  <body>
+    <h1>Confirm Card</h1>
+    <img src="{{ url_for('dataset_file', filename=image_name) }}" alt="Captured card" style="max-width:100%;height:auto;">
+    <p>Predicted label: {{ prediction }}</p>
+    <form action="{{ url_for('confirm') }}" method="post">
+      <input type="hidden" name="image_name" value="{{ image_name }}">
+      <label for="label">Correct label:</label>
+      <input id="label" name="label" type="text" value="{{ prediction }}">
+      <button type="submit">Save</button>
+    </form>
+    <p><a href="{{ url_for('capture') }}">Retake</a></p>
+  </body>
+</html>
