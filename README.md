@@ -1,84 +1,61 @@
 # Card Dealer
 
-This repository contains the initial scaffold for a playing card dealing system.
+**Внимание!** Вся документация в этом проекте должна быть на русском языке.
 
-## Project layout
+Данный репозиторий содержит заготовку системы для распознавания и раздачи игральных карт.
+
+## Структура проекта
 
 ```
-card_dealer/            # Python package for the project
+card_dealer/            # Python-пакет с исходным кодом
     __init__.py
-    camera.py
-    recognizer.py
-    servo_controller.py
-    webapp.py
-    main.py
+    camera.py           # захват изображений с камеры
+    recognizer.py       # простое распознавание карт по шаблонам
+    servo_controller.py # управление сервоприводом
+    webapp.py           # веб-интерфейс на Flask
+    main.py             # пример запуска
 
-dataset/                # Captured card images
-
-templates/              # HTML templates used by the Flask web app
+dataset/                # изображения карт и временные снимки
+templates/              # HTML-шаблоны для веб-приложения
+train_model.py          # обучение сверточной сети
+predict.py              # использование обученной модели
+model.py                # архитектура нейронной сети
+utils.py                # утилиты сохранения модели
 ```
 
-## Dataset
+## Установка
 
-The ``dataset/`` directory stores labeled reference images used by the simple
-template matcher in :mod:`card_dealer.recognizer`.  File names follow the
-``<rank>_of_<suit>.<ext>`` pattern where ``<ext>`` is typically ``png``.  For
-example a picture of the ace of spades would be saved as
-``dataset/Ace_of_Spades.png``.
-
-
-Most modules are still placeholders.  The :mod:`card_dealer.camera` module can
-capture a single frame from the default camera, and
-:mod:`card_dealer.servo_controller` contains a very small helper used to
-activate a servo for dispensing cards.
-
-## Installation
-
-1. Install **Python 3.9** or newer.
-2. (Optional) Create and activate a virtual environment.
-3. Install the required packages:
+1. Требуется **Python 3.9** или новее.
+2. При необходимости создайте и активируйте виртуальное окружение.
+3. Установите зависимости:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-The main dependencies are ``opencv-python`` (or ``opencv-python-headless`` on a
-headless system), ``flask`` for the web interface, ``picamera`` when using the
-Raspberry Pi camera module, ``numpy`` and the optional ``RPi.GPIO`` and
-``pyserial`` libraries for servo control.
+Основные зависимости: `opencv-python`, `flask`, `numpy`, а также опциональные `RPi.GPIO` и `pyserial` для работы с сервоприводом.
 
-## Camera configuration
+## Конфигурация камеры
 
-The :mod:`card_dealer.camera` module provides a ``capture_image`` function
-that grabs a single frame from the default camera using ``cv2.VideoCapture``.
-The capture uses device index ``0`` with a resolution of **1280x720** pixels.
+Модуль `card_dealer.camera` предоставляет функцию `capture_image`, снимающую кадр с устройства `0` (обычно `/dev/video0`) в разрешении **1280x720**.
 
-## Hardware setup
+## Аппаратная часть
 
-### Camera
+### Камера
 
-* Connect a USB webcam or Raspberry Pi camera so that it is available as
-  ``/dev/video0``.  If your camera uses a different index adjust the call to
-  :func:`cv2.VideoCapture` in :mod:`card_dealer.camera`.
-* Ensure the camera is capable of 1280x720 resolution or update the resolution
-  in ``capture_image``.
+- Подключите USB‑камеру или камеру Raspberry Pi, чтобы она была доступна как `/dev/video0`.
+- При необходимости измените индекс устройства или разрешение в функции `capture_image`.
 
-### Servo
+### Серво
 
-``card_dealer.servo_controller`` supports two connection methods:
+`card_dealer.servo_controller` позволяет управлять сервомотором двумя способами:
 
-1. **GPIO PWM** &ndash; pass the GPIO pin number to ``ServoController``.  This
-   requires the ``RPi.GPIO`` library.
-2. **Serial** &ndash; provide the serial port name (e.g. ``/dev/ttyUSB0``).  This
-   requires ``pyserial``.
+1. **GPIO PWM** — укажите номер GPIO‑пина при создании `ServoController`.
+2. **Последовательный порт** — укажите имя порта (например, `/dev/ttyUSB0`).
 
-Wire the servo to your chosen control method and make sure the power supply is
-adequate for the servo current draw.
+## Запуск примеров
 
-## Running the program
-
-The repository ships only minimal example code.  A simple test run can capture
-an image and attempt to recognize it:
+Простейший пример захватывает изображение и пытается определить карту:
 
 ```python
 from pathlib import Path
@@ -86,10 +63,10 @@ from card_dealer.camera import capture_image
 from card_dealer.recognizer import recognize_card
 
 img = capture_image(Path("test.png"))
-print("Detected card:", recognize_card(img))
+print("Обнаружена карта:", recognize_card(img))
 ```
 
-To dispense a card using a servo connected to GPIO pin ``11``:
+Для выдачи карты сервоприводом на GPIO‑пине `11`:
 
 ```python
 from card_dealer.servo_controller import ServoController
@@ -99,69 +76,54 @@ controller.dispense_card()
 controller.cleanup()
 ```
 
-These examples can be executed in a Python REPL after installing the
-dependencies.
+## Тесты
 
-## Running tests
-
-The repository contains a small test suite.  After installing the
-dependencies, run `pytest` from the project root to execute the tests:
+После установки зависимостей запустите тесты командой:
 
 ```bash
 pytest
 ```
 
-## Dataset
+## Сбор датасета
 
-The :mod:`card_dealer.recognizer` module expects labeled training
-images in the :file:`dataset/` directory. Each image file name should
-use the pattern ``<label>.<ext>`` where ``<label>`` is the card name and
-``<ext>`` is any supported image extension (for example
-``Ace_of_Spades.png``). Spaces in the label are replaced with
-underscores.
-
-To collect training images manually, start the web interface and follow
-the capture workflow as shown below:
+Каталог `dataset/` содержит изображения карт, используемые распознавателем. Сбор новых изображений осуществляется через веб‑интерфейс:
 
 ```bash
 python -m card_dealer.webapp
 ```
 
-After capturing a card, edit the label field if necessary and press the
-save button. The image is stored inside :file:`dataset/` using the label
-you provided.
+После съёмки отредактируйте название карты при необходимости и нажмите **Save**. Файл будет сохранён в `dataset/` с названием вида `Имя_карты.png`.
 
-## Web interface
+## Веб‑интерфейс
 
-The project includes a small Flask application for capturing images and
-confirming their labels. Launch it with:
+Запустите:
 
 ```bash
 python -m card_dealer.webapp
 ```
 
-Navigate to ``http://localhost:5000/`` and capture a card. The page
-shows the predicted card name. Enter the correct name if the prediction
-is wrong and click **Save**. The labeled image is written to
-:file:`dataset/` with spaces replaced by underscores.
-
-
+Перейдите на `http://localhost:5000/`, снимите карту, проверьте название и сохраните изображение. При подтверждении фотография попадёт в `dataset/`.
 
 ## Обучение нейронной сети
 
-В репозитории имеется простая сверточная сеть для распознавания карт. Данные для обучения берутся из папки :file:`dataset/`, где имя каждого файла является меткой (например, ``Ace_of_Spades.png``). Запустите :mod:`train_model.py`, чтобы обучить или дообучить модель:
+Для более точного распознавания предусмотрена простая сверточная сеть. Скрипт `train_model.py` читает разметку из CSV‑файла (по умолчанию `cards.csv`) и изображения из папки `dataset/`. Обучение запускается так:
 
 ```bash
-python train_model.py --dataset dataset --epochs 10
+python train_model.py --csv cards.csv --epochs 10 --model-path model.pt
 ```
 
-Обученные веса и информация о классах сохраняются в ``model.pt``. Предсказать карту по изображению можно функцией ``recognize_card`` из модуля :mod:`predict`:
+Параметр `--resume` позволяет продолжить обучение, если модель уже существует. После завершения веса сохраняются в `model.pt`, а соответствие меток — в том же файле.
+
+## Использование модели
+
+Для распознавания карты по изображению используйте `predict.py`:
 
 ```python
 from predict import recognize_card
 
-label = recognize_card("some_image.png")
-print(label)
+result = recognize_card("some_image.png", model_path="model.pt")
+print(result["label"])
 ```
 
-Аргумент ``--resume`` позволяет продолжить обучение существующей модели, если в ``dataset/`` появились новые изображения.
+Файл `model.pt` должен находиться в корне проекта, если не указано иное.
+
