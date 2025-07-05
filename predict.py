@@ -10,6 +10,28 @@ import numpy as np
 
 from model import create_model, IMAGE_SIZE
 
+# Cache loaded models to avoid reloading weights for every prediction
+_MODEL_CACHE: dict[tuple[str, str], tuple[torch.nn.Module, dict[int, str]]] = {}
+
+
+def _load_model(model_path: str, device: str) -> tuple[torch.nn.Module, dict[int, str]]:
+    """Load and cache a model for the given path and device."""
+    key = (model_path, device)
+    if key in _MODEL_CACHE:
+        return _MODEL_CACHE[key]
+
+    checkpoint = torch.load(model_path, map_location=device)
+    class_to_idx = checkpoint.get("class_to_idx", {})
+    idx_to_class = {v: k for k, v in class_to_idx.items()}
+    model = create_model(num_classes=len(class_to_idx))
+    state = checkpoint.get("model_state", checkpoint)
+    model.load_state_dict(state, strict=False)
+    model.to(device)
+    model.eval()
+
+    _MODEL_CACHE[key] = (model, idx_to_class)
+    return model, idx_to_class
+
 _transform = transforms.Compose([
     transforms.Resize(IMAGE_SIZE),
     transforms.ToTensor(),
@@ -28,14 +50,7 @@ def recognize_card(image_path: str | Path, model_path: str = "model.pt", device:
     image_path = Path(image_path)
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
-    checkpoint = torch.load(model_path, map_location=device)
-    class_to_idx = checkpoint.get("class_to_idx", {})
-    idx_to_class = {v: k for k, v in class_to_idx.items()}
-    model = create_model(num_classes=len(class_to_idx))
-    state = checkpoint.get("model_state", checkpoint)
-    model.load_state_dict(state, strict=False)
-    model.to(device)
-    model.eval()
+    model, idx_to_class = _load_model(model_path, device)
     image = Image.open(image_path).convert("RGB")
     tensor = _transform(image).unsqueeze(0).to(device)
     with torch.no_grad():
@@ -53,14 +68,7 @@ def recognize_card_array(
 
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
-    checkpoint = torch.load(model_path, map_location=device)
-    class_to_idx = checkpoint.get("class_to_idx", {})
-    idx_to_class = {v: k for k, v in class_to_idx.items()}
-    model = create_model(num_classes=len(class_to_idx))
-    state = checkpoint.get("model_state", checkpoint)
-    model.load_state_dict(state, strict=False)
-    model.to(device)
-    model.eval()
+    model, idx_to_class = _load_model(model_path, device)
     tensor = _array_transform(image).unsqueeze(0).to(device)
     with torch.no_grad():
         output = model(tensor)
