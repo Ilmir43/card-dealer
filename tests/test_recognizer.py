@@ -24,6 +24,7 @@ class DummyImage:
 class DummyCV2:
     IMREAD_GRAYSCALE = 0
     TM_CCOEFF_NORMED = 1
+    COLOR_BGR2GRAY = 2
 
     def imread(self, path, flag):
         name = Path(path).name
@@ -44,6 +45,9 @@ class DummyCV2:
     def minMaxLoc(self, result):
         val = result[0][0]
         return 0.0, val, (0, 0), (0, 0)
+
+    def cvtColor(self, image, flag):
+        return image
 
 def test_multiple_templates(monkeypatch, tmp_path):
     dataset = tmp_path / "dataset"
@@ -66,4 +70,20 @@ def test_multiple_templates(monkeypatch, tmp_path):
 
     assert result == "Ace of Hearts"
     assert len(templates["Ace of Hearts"]) == 2
+
+
+def test_recognize_card_array(monkeypatch, tmp_path):
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    (dataset / "Ace_of_Hearts.png").write_text("a")
+
+    dummy_cv2 = DummyCV2()
+    monkeypatch.setattr(recognizer, "cv2", dummy_cv2)
+    monkeypatch.setattr(recognizer, "DATASET_DIR", dataset)
+    monkeypatch.setattr(recognizer, "_TEMPLATES", None)
+
+    image = DummyImage("target")
+    result = recognizer.recognize_card_array(image)
+
+    assert result == "Ace of Hearts"
 
