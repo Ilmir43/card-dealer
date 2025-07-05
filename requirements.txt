@@ -1,8 +1,9 @@
 flask
 opencv-python
-picamera
 numpy
-RPi.GPIO
 pyserial
 torch
 torchvision
+# Пакеты для Raspberry Pi устанавливаются только на Linux
+picamera; platform_system == "Linux"
+RPi.GPIO; platform_system == "Linux"

@@ -33,7 +33,9 @@ utils.py                # утилиты сохранения модели
 pip install -r requirements.txt
 ```
 
-Основные зависимости: `opencv-python`, `flask`, `numpy`, а также опциональные `RPi.GPIO` и `pyserial` для работы с сервоприводом.
+Основные зависимости: `opencv-python`, `flask`, `numpy`, `torch` и `torchvision`.
+Пакеты `picamera` и `RPi.GPIO` нужны только на Raspberry Pi и
+автоматически пропускаются при установке на macOS и других системах.
 
 ## Конфигурация камеры
 
@@ -54,6 +56,7 @@ pip install -r requirements.txt
 
 1. **GPIO PWM** — укажите номер GPIO‑пина при создании `ServoController`.
 2. **Последовательный порт** — укажите имя порта (например, `/dev/ttyUSB0`).
+   Для этого режима необходим пакет `pyserial`.
 
 ## Запуск примеров
 
