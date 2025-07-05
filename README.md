@@ -37,7 +37,9 @@ pip install -r requirements.txt
 
 ## Конфигурация камеры
 
-Модуль `card_dealer.camera` предоставляет функцию `capture_image`, снимающую кадр с устройства `0` (обычно `/dev/video0`) в разрешении **1280x720**.
+Модуль `card_dealer.camera` предоставляет функцию `capture_image`, снимающую кадр с устройства `0` (обычно `/dev/video0`) в разрешении **1280x720**. На macOS с чипом M1 можно передать параметр `api_preference=cv2.CAP_AVFOUNDATION`, чтобы задействовать встроенную камеру.
+Функция `stream_frames` использует те же параметры и позволяет получать видео
+для веб‑страницы `/live`.
 
 ## Аппаратная часть
 
@@ -60,9 +62,11 @@ pip install -r requirements.txt
 ```python
 from pathlib import Path
 from card_dealer.camera import capture_image
+import cv2
 from card_dealer.recognizer import recognize_card
 
-img = capture_image(Path("test.png"))
+# Для macOS можно указать api_preference=cv2.CAP_AVFOUNDATION
+img = capture_image(Path("test.png"), api_preference=cv2.CAP_AVFOUNDATION)
 print("Обнаружена карта:", recognize_card(img))
 ```
 
@@ -103,6 +107,10 @@ python -m card_dealer.webapp
 ```
 
 Перейдите на `http://localhost:5000/`, снимите карту, проверьте название и сохраните изображение. При подтверждении фотография попадёт в `dataset/`.
+
+Для просмотра видео с распознаванием в реальном времени откройте страницу
+`http://localhost:5000/live`. На кадрах будет отображаться название найденной
+карты.
 
 ## Обучение нейронной сети
 

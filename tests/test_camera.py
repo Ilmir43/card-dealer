@@ -7,8 +7,9 @@ class DummyVideoCapture:
     CAP_PROP_FRAME_WIDTH = 3
     CAP_PROP_FRAME_HEIGHT = 4
 
-    def __init__(self, index: int, calls: dict):
+    def __init__(self, index: int, api: int | None, calls: dict):
         self.index = index
+        self.api = api
         self.calls = calls
         self.props = {}
         self.opened = True
@@ -34,9 +35,10 @@ def test_capture_image(monkeypatch, tmp_path):
         CAP_PROP_FRAME_WIDTH = DummyVideoCapture.CAP_PROP_FRAME_WIDTH
         CAP_PROP_FRAME_HEIGHT = DummyVideoCapture.CAP_PROP_FRAME_HEIGHT
 
-        def VideoCapture(self, index):
+        def VideoCapture(self, index, api_preference=None):
             calls["index"] = index
-            return DummyVideoCapture(index, calls)
+            calls["api_preference"] = api_preference
+            return DummyVideoCapture(index, api_preference, calls)
 
         def imwrite(self, path, frame):
             calls["imwrite"] = path
@@ -47,9 +49,45 @@ def test_capture_image(monkeypatch, tmp_path):
     monkeypatch.setattr(camera, "cv2", dummy_cv2)
 
     out_file = tmp_path / "out.png"
-    result = camera.capture_image(out_file)
+    result = camera.capture_image(out_file, device_index=1, api_preference=42)
 
     assert result == out_file
-    assert calls["index"] == 0
+    assert calls["index"] == 1
+    assert calls["api_preference"] == 42
     assert calls["imwrite"] == str(out_file)
     assert out_file.exists()
+
+
+def test_stream_frames(monkeypatch):
+    calls = {"reads": []}
+
+    class DummyCV2:
+        CAP_PROP_FRAME_WIDTH = DummyVideoCapture.CAP_PROP_FRAME_WIDTH
+        CAP_PROP_FRAME_HEIGHT = DummyVideoCapture.CAP_PROP_FRAME_HEIGHT
+
+        def VideoCapture(self, index, api_preference=None):
+            calls["index"] = index
+            calls["api_preference"] = api_preference
+            return StreamDummyVideoCapture(index, api_preference, calls)
+
+    class StreamDummyVideoCapture(DummyVideoCapture):
+        def __init__(self, index: int, api: int | None, calls: dict):
+            super().__init__(index, api, calls)
+            self.read_count = 0
+
+        def read(self):
+            self.read_count += 1
+            if self.read_count <= 2:
+                calls["reads"].append(self.read_count)
+                return True, f"frame{self.read_count}"
+            return False, None
+
+    dummy_cv2 = DummyCV2()
+    monkeypatch.setattr(camera, "cv2", dummy_cv2)
+
+    gen = camera.stream_frames(device_index=2, api_preference=99)
+    frames = list(gen)
+
+    assert frames == ["frame1", "frame2"]
+    assert calls["index"] == 2
+    assert calls["api_preference"] == 99

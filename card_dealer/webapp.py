@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+from flask import (
+    Flask,
+    Response,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    send_from_directory,
+)
 
 from . import camera, recognizer
 
@@ -36,6 +44,39 @@ def capture() -> str:
 def dataset_file(filename: str):
     """Serve files from the dataset directory."""
     return send_from_directory(recognizer.DATASET_DIR, filename)
+
+
+def _video_frames():
+    """Generate JPEG frames with recognition overlay."""
+    for frame in camera.stream_frames():
+        label = recognizer.recognize_card_array(frame)
+        camera.cv2.putText(
+            frame,
+            label,
+            (10, 30),
+            camera.cv2.FONT_HERSHEY_SIMPLEX,
+            1.0,
+            (0, 255, 0),
+            2,
+        )
+        success, buffer = camera.cv2.imencode(".jpg", frame)
+        if not success:
+            continue
+        yield (
+            b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
+        )
+
+
+@app.route("/video_feed")
+def video_feed() -> Response:
+    """Stream video from the camera with recognition results."""
+    return Response(_video_frames(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.route("/live")
+def live() -> str:
+    """Display a page with the live video feed."""
+    return render_template("live.html")
 
 
 @app.route("/confirm", methods=["POST"])

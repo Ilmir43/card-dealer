@@ -115,6 +115,33 @@ def recognize_card(image_path: Path) -> str:
     return best_label
 
 
+def recognize_card_array(image: "np.ndarray") -> str:
+    """Recognize a playing card from an image array."""
+
+    if cv2 is None:
+        raise RuntimeError("OpenCV is required for card recognition")
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    templates = _load_templates()
+    if not templates:
+        return "Unknown"
+
+    best_label = "Unknown"
+    best_score = -1.0
+    for label, templ_list in templates.items():
+        for templ in templ_list:
+            if gray.shape[0] < templ.shape[0] or gray.shape[1] < templ.shape[1]:
+                continue
+            result = cv2.matchTemplate(gray, templ, cv2.TM_CCOEFF_NORMED)
+            _min_val, max_val, _min_loc, _max_loc = cv2.minMaxLoc(result)
+            if max_val > best_score:
+                best_score = max_val
+                best_label = label
+
+    return best_label
+
+
 def save_labeled_image(image_path: Path, label: str) -> Path:
     """Save an image with a label into :data:`DATASET_DIR`.
 
