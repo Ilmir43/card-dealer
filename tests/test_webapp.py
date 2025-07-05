@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path
 
 try:
     from card_dealer import webapp
@@ -38,4 +39,40 @@ def test_video_frames(monkeypatch):
 
     gen = webapp._video_frames()
     data = b"".join([next(gen), next(gen)])
+    assert b"data" in data
+
+
+def test_video_frames_handles_errors(monkeypatch):
+    frames = ["img1", "img2"]
+
+    def dummy_stream_frames():
+        for f in frames:
+            yield f
+
+    def failing_recognize(image, **kwargs):
+        raise RuntimeError("boom")
+
+    class DummyCV2:
+        FONT_HERSHEY_SIMPLEX = 0
+
+        def putText(self, frame, text, pos, font, scale, color, thickness):
+            pass
+
+        def imencode(self, ext, frame):
+            return True, DummyBuffer(frame)
+
+    class DummyBuffer:
+        def __init__(self, frame):
+            self.frame = frame
+
+        def tobytes(self):
+            return b"data" + bytes(self.frame, "utf-8")
+
+    monkeypatch.setattr(webapp.camera, "stream_frames", dummy_stream_frames)
+    monkeypatch.setattr(webapp.predict, "recognize_card_array", failing_recognize)
+    monkeypatch.setattr(webapp.camera, "cv2", DummyCV2())
+    monkeypatch.setattr(webapp, "_MODEL_PATH", Path("model.pt"))
+
+    gen = webapp._video_frames()
+    data = next(gen)
     assert b"data" in data

@@ -55,11 +55,16 @@ def _video_frames():
     """Generate JPEG frames with recognition overlay."""
     global _LATEST_LABEL
     for frame in camera.stream_frames():
-        if _MODEL_PATH is not None:
-            result = predict.recognize_card_array(frame, model_path=str(_MODEL_PATH))
-            label = result.get("label", "Unknown")
-        else:
-            label = recognizer.recognize_card_array(frame)
+        try:
+            if _MODEL_PATH is not None:
+                result = predict.recognize_card_array(
+                    frame, model_path=str(_MODEL_PATH)
+                )
+                label = result.get("label", "Unknown")
+            else:
+                label = recognizer.recognize_card_array(frame)
+        except Exception:  # pragma: no cover - safety net for video feed
+            label = "Error"
         _LATEST_LABEL = label
         camera.cv2.putText(
             frame,
