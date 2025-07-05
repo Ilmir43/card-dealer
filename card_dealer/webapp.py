@@ -13,12 +13,17 @@ from flask import (
 )
 
 from . import camera, recognizer
+import predict
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 app = Flask(__name__, template_folder=str(TEMPLATE_DIR))
 
 # Temporary capture filename inside dataset directory
 _CAPTURE_NAME = "_capture.png"
+# Path to a CNN model used for live recognition; None means template recognizer
+_MODEL_PATH: Path | None = None
+# Latest label recognized in the video stream
+_LATEST_LABEL: str = ""
 
 
 @app.route("/")
@@ -48,8 +53,14 @@ def dataset_file(filename: str):
 
 def _video_frames():
     """Generate JPEG frames with recognition overlay."""
+    global _LATEST_LABEL
     for frame in camera.stream_frames():
-        label = recognizer.recognize_card_array(frame)
+        if _MODEL_PATH is not None:
+            result = predict.recognize_card_array(frame, model_path=str(_MODEL_PATH))
+            label = result.get("label", "Unknown")
+        else:
+            label = recognizer.recognize_card_array(frame)
+        _LATEST_LABEL = label
         camera.cv2.putText(
             frame,
             label,
@@ -77,6 +88,23 @@ def video_feed() -> Response:
 def live() -> str:
     """Display a page with the live video feed."""
     return render_template("live.html")
+
+
+@app.route("/current_label")
+def current_label() -> dict[str, str]:
+    """Return the latest recognized label as JSON."""
+    return {"label": _LATEST_LABEL}
+
+
+@app.route("/model", methods=["GET", "POST"])
+def select_model() -> str:
+    """Select the model used for live recognition."""
+    global _MODEL_PATH
+    if request.method == "POST":
+        path = request.form.get("model_path", "").strip()
+        _MODEL_PATH = Path(path) if path else None
+        return redirect(url_for("live"))
+    return render_template("select_model.html", model_path=_MODEL_PATH)
 
 
 @app.route("/confirm", methods=["POST"])
