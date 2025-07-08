@@ -28,6 +28,53 @@ def _apply_settings(cap: Any, settings: Dict[str, Any] | None) -> None:
             cap.set(prop, value)
 
 
+def find_card(frame: Any) -> Any | None:
+    """Найти изображение карты на кадре.
+
+    Алгоритм использует простое пороговое выделение светлой области и
+    возвращает фрагмент изображения, ограниченный минимальным прямоугольником.
+    Если подходящая область не найдена, функция возвращает ``None``.
+    """
+
+    # Determine image dimensions
+    try:
+        height, width = frame.shape[:2]
+    except AttributeError:
+        height = len(frame)
+        width = len(frame[0]) if height > 0 else 0
+
+    min_x, min_y = width, height
+    max_x, max_y = -1, -1
+
+    for y in range(height):
+        for x in range(width):
+            pixel = frame[y][x]
+            try:
+                value = sum(pixel) / len(pixel)
+            except TypeError:
+                value = pixel
+            if value > 30:
+                if x < min_x:
+                    min_x = x
+                if y < min_y:
+                    min_y = y
+                if x > max_x:
+                    max_x = x
+                if y > max_y:
+                    max_y = y
+
+    if max_x < min_x or max_y < min_y:
+        return None
+
+    try:
+        card = frame[min_y : max_y + 1, min_x : max_x + 1]
+        if hasattr(card, "copy"):
+            card = card.copy()
+        return card
+    except Exception:
+        return [row[min_x : max_x + 1] for row in frame[min_y : max_y + 1]]
+
+
 def capture_image(
     output_path: Path,
     device_index: int = 0,

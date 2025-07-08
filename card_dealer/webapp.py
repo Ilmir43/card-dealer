@@ -82,14 +82,16 @@ def _video_frames():
     for frame in camera.stream_frames():
         if _MIRROR:
             frame = camera.cv2.flip(frame, 1)
+        card = camera.find_card(frame)
+        source = card if card is not None else frame
         try:
             if _MODEL_PATH is not None:
                 result = predict.recognize_card_array(
-                    frame, model_path=str(_MODEL_PATH)
+                    source, model_path=str(_MODEL_PATH)
                 )
                 label = result.get("label", "Unknown")
             else:
-                label = recognizer.recognize_card_array(frame)
+                label = recognizer.recognize_card_array(source)
         except Exception:  # pragma: no cover - safety net for video feed
             label = "Error"
         _LATEST_LABEL = label

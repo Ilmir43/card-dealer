@@ -14,7 +14,14 @@ def test_video_frames(monkeypatch):
         for f in frames:
             yield f
 
+    calls = {}
+
+    def dummy_find_card(frame):
+        calls.setdefault("find", []).append(frame)
+        return f"card-{frame}"
+
     def dummy_recognize(image):
+        calls.setdefault("rec", []).append(image)
         return "Ace"
 
     class DummyCV2:
@@ -34,12 +41,15 @@ def test_video_frames(monkeypatch):
             return b"data" + bytes(self.frame, "utf-8")
 
     monkeypatch.setattr(webapp.camera, "stream_frames", dummy_stream_frames)
+    monkeypatch.setattr(webapp.camera, "find_card", dummy_find_card)
     monkeypatch.setattr(webapp.recognizer, "recognize_card_array", dummy_recognize)
     monkeypatch.setattr(webapp.camera, "cv2", DummyCV2())
 
     gen = webapp._video_frames()
     data = b"".join([next(gen), next(gen)])
     assert b"data" in data
+    assert calls["find"] == ["img1", "img2"]
+    assert calls["rec"] == ["card-img1", "card-img2"]
 
 
 def test_video_frames_handles_errors(monkeypatch):
@@ -69,6 +79,7 @@ def test_video_frames_handles_errors(monkeypatch):
             return b"data" + bytes(self.frame, "utf-8")
 
     monkeypatch.setattr(webapp.camera, "stream_frames", dummy_stream_frames)
+    monkeypatch.setattr(webapp.camera, "find_card", lambda f: None)
     monkeypatch.setattr(webapp.predict, "recognize_card_array", failing_recognize)
     monkeypatch.setattr(webapp.camera, "cv2", DummyCV2())
     monkeypatch.setattr(webapp, "_MODEL_PATH", Path("model.pt"))
@@ -111,6 +122,7 @@ def test_video_frames_mirror(monkeypatch):
             return b"data" + bytes(self.frame, "utf-8")
 
     monkeypatch.setattr(webapp.camera, "stream_frames", dummy_stream_frames)
+    monkeypatch.setattr(webapp.camera, "find_card", lambda f: None)
     monkeypatch.setattr(webapp.recognizer, "recognize_card_array", dummy_recognize)
     monkeypatch.setattr(webapp.camera, "cv2", DummyCV2())
     monkeypatch.setattr(webapp, "_MIRROR", True)
