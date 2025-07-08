@@ -17,6 +17,11 @@ _PROP_MAP: Dict[str, int] = {
     "gain": cv2.CAP_PROP_GAIN if cv2 else 14,
 }
 
+# Default capture resolution. Lower values reduce CPU load and help
+# when the camera cannot handle high resolutions.
+DEFAULT_WIDTH = 640
+DEFAULT_HEIGHT = 360
+
 
 def _apply_settings(cap: Any, settings: Dict[str, Any] | None) -> None:
     """Apply camera property settings if provided."""
@@ -32,11 +37,30 @@ def find_card_bounds(frame: Any) -> tuple[int, int, int, int] | None:
     """Найти координаты карты на кадре.
 
     Возвращает кортеж ``(min_x, min_y, max_x, max_y)`` либо ``None`` если
-    подходящая область не найдена. Алгоритм совпадает с тем, что используется
-    в :func:`find_card`.
+    подходящая область не найдена. Если доступен OpenCV, используется поиск
+    наибольшего контура. В противном случае выполняется простое сканирование
+    ярких точек.
     """
 
-    # Determine image dimensions
+    # Попытка использовать OpenCV для более точного определения границ
+    if cv2 is not None and hasattr(frame, "shape"):
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            _ret, thresh = cv2.threshold(gray, 30, 255, cv2.THRESH_BINARY)
+            contours, _ = cv2.findContours(
+                thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            if contours:
+                contour = max(contours, key=cv2.contourArea)
+                x, y, w, h = cv2.boundingRect(contour)
+                area = w * h
+                if area < frame.shape[0] * frame.shape[1] * 0.95:
+                    return x, y, x + w - 1, y + h - 1
+        except Exception:
+            # если что-то пошло не так, продолжаем со старым методом
+            pass
+
+    # Старый алгоритм перебора пикселей
     try:
         height, width = frame.shape[:2]
     except AttributeError:
@@ -72,9 +96,11 @@ def find_card_bounds(frame: Any) -> tuple[int, int, int, int] | None:
 def find_card(frame: Any) -> Any | None:
     """Найти изображение карты на кадре.
 
-    Алгоритм использует простое пороговое выделение светлой области и
-    возвращает фрагмент изображения, ограниченный минимальным прямоугольником.
-    Если подходящая область не найдена, функция возвращает ``None``.
+    Алгоритм пытается найти карту как наибольший яркий контур при помощи
+    OpenCV. Если библиотека недоступна, применяется простое пороговое
+    выделение. В обоих случаях возвращается фрагмент изображения,
+    ограниченный минимальным прямоугольником. Если подходящая область не
+    найдена, функция возвращает ``None``.
     """
     bounds = find_card_bounds(frame)
     if bounds is None:
@@ -115,8 +141,8 @@ def capture_image(
     -----
     The camera is opened using :func:`cv2.VideoCapture` with ``device_index``.
     On macOS можно указать ``api_preference=cv2.CAP_AVFOUNDATION`` для работы
-    со встроенной камерой. Разрешение кадра устанавливается в ``1280``×``720``
-    пикселей.
+    со встроенной камерой. Разрешение кадра по умолчанию снижено до
+    ``640``×``360`` пикселей, что позволяет ускорить работу камеры.
     """
 
     if cv2 is None:
@@ -130,8 +156,8 @@ def capture_image(
         raise RuntimeError("Unable to open camera device")
 
     # Configure resolution
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, DEFAULT_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DEFAULT_HEIGHT)
     _apply_settings(cap, camera_settings)
 
     success, frame = cap.read()
@@ -179,8 +205,8 @@ def stream_frames(
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera device")
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, DEFAULT_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DEFAULT_HEIGHT)
     _apply_settings(cap, camera_settings)
 
     try:
@@ -235,12 +261,12 @@ def record_video(
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera device")
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, DEFAULT_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DEFAULT_HEIGHT)
     _apply_settings(cap, camera_settings)
 
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(output_path), fourcc, fps, (1280, 720))
+    writer = cv2.VideoWriter(str(output_path), fourcc, fps, (DEFAULT_WIDTH, DEFAULT_HEIGHT))
     if not writer.isOpened():
         cap.release()
         raise RuntimeError("Unable to open video writer")
