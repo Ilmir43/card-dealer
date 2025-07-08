@@ -21,6 +21,8 @@ app = Flask(__name__, template_folder=str(TEMPLATE_DIR))
 
 # Temporary capture filename inside dataset directory
 _CAPTURE_NAME = "_capture.png"
+# Temporary filename for uploaded verification images
+_UPLOAD_NAME = "_upload.png"
 # Path to a CNN model used for live recognition; None means template recognizer
 _MODEL_PATH: Path | None = None
 # Latest label recognized in the video stream
@@ -67,6 +69,7 @@ def capture() -> str:
         "confirm.html",
         image_name=_CAPTURE_NAME,
         prediction=prediction,
+        back_url=url_for("capture"),
     )
 
 
@@ -74,6 +77,26 @@ def capture() -> str:
 def dataset_file(filename: str):
     """Serve files from the dataset directory."""
     return send_from_directory(recognizer.DATASET_DIR, filename)
+
+
+@app.route("/verify", methods=["GET", "POST"])
+def verify_upload() -> str:
+    """Upload an image for recognition verification."""
+    if request.method == "POST":
+        file = request.files.get("image")
+        if file:
+            image_path = recognizer.DATASET_DIR / _UPLOAD_NAME
+            image_path.parent.mkdir(parents=True, exist_ok=True)
+            file.save(str(image_path))
+            prediction = recognizer.recognize_card(image_path)
+            return render_template(
+                "confirm.html",
+                image_name=_UPLOAD_NAME,
+                prediction=prediction,
+                back_url=url_for("verify_upload"),
+            )
+        return redirect(url_for("verify_upload"))
+    return render_template("upload.html")
 
 
 def _video_frames():
@@ -157,10 +180,11 @@ def current_card() -> dict[str, str | None]:
 @app.route("/confirm", methods=["POST"])
 def confirm() -> str:
     """Save the labeled image provided by the user."""
-    label = request.form.get("label", "").strip()
+    label = request.form.get("label", "").strip() or "Unknown"
+    predicted = request.form.get("prediction", "").strip() or label
     image_path = recognizer.DATASET_DIR / request.form.get("image_name", _CAPTURE_NAME)
-    if label:
-        recognizer.save_labeled_image(image_path, label)
+    dest = recognizer.save_labeled_image(image_path, label)
+    recognizer.log_verification(dest.name, predicted, label)
     if image_path.exists():
         image_path.unlink()
     return redirect(url_for("next_card"))

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import shutil
+import csv
 from typing import Dict, List
 
 try:  # pragma: no cover - OpenCV/Numpy may not be installed
@@ -184,4 +185,17 @@ def save_labeled_image(image_path: Path, label: str) -> Path:
     global _TEMPLATES
     _TEMPLATES = None
     return dest
+
+
+def log_verification(filename: str, predicted: str, actual: str) -> None:
+    """Append a verification record to ``verify_log.csv`` in :data:`DATASET_DIR`."""
+
+    log_path = DATASET_DIR / "verify_log.csv"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    new_file = not log_path.exists()
+    with log_path.open("a", newline="") as f:
+        writer = csv.writer(f)
+        if new_file:
+            writer.writerow(["file", "predicted", "actual"])
+        writer.writerow([filename, predicted, actual])
 
