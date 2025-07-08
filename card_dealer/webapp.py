@@ -108,7 +108,11 @@ def verify_upload() -> str:
             image_path = recognizer.DATASET_DIR / _UPLOAD_NAME
             image_path.parent.mkdir(parents=True, exist_ok=True)
             file.save(str(image_path))
-            prediction = recognizer.recognize_card(image_path)
+            if _MODEL_PATH is not None:
+                result = predict.recognize_card(image_path, model_path=str(_MODEL_PATH))
+                prediction = result.get("label", "Unknown")
+            else:
+                prediction = recognizer.recognize_card(image_path)
             return render_template(
                 "confirm.html",
                 image_name=_UPLOAD_NAME,

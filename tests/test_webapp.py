@@ -151,6 +151,26 @@ def test_verify_upload(monkeypatch, tmp_path):
     assert (tmp_path / "ds" / webapp._UPLOAD_NAME).exists()
 
 
+def test_verify_upload_with_model(monkeypatch, tmp_path):
+    monkeypatch.setattr(webapp.recognizer, "DATASET_DIR", tmp_path / "ds")
+
+    def dummy_predict(path, model_path="model.pt", device=None):
+        assert path.name == webapp._UPLOAD_NAME
+        assert model_path == "model.pt"
+        return {"label": "Jack"}
+
+    monkeypatch.setattr(webapp.predict, "recognize_card", dummy_predict)
+    monkeypatch.setattr(webapp.recognizer, "recognize_card", lambda p: "Wrong")
+    monkeypatch.setattr(webapp, "_MODEL_PATH", Path("model.pt"))
+
+    client = webapp.app.test_client()
+    data = {"image": (io.BytesIO(b"img"), "card.png")}
+    resp = client.post("/verify", data=data, content_type="multipart/form-data")
+
+    assert resp.status_code == 200
+    assert b"Jack" in resp.data
+
+
 def test_confirm_logs_result(monkeypatch, tmp_path):
     ds = tmp_path / "ds"
     monkeypatch.setattr(webapp.recognizer, "DATASET_DIR", ds)
