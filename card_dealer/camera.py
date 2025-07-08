@@ -19,8 +19,8 @@ _PROP_MAP: Dict[str, int] = {
 
 # Default capture resolution. Lower values reduce CPU load and help
 # when the camera cannot handle high resolutions.
-DEFAULT_WIDTH = 640
-DEFAULT_HEIGHT = 360
+DEFAULT_WIDTH = 320
+DEFAULT_HEIGHT = 180
 
 
 def _apply_settings(cap: Any, settings: Dict[str, Any] | None) -> None:
@@ -142,7 +142,7 @@ def capture_image(
     The camera is opened using :func:`cv2.VideoCapture` with ``device_index``.
     On macOS можно указать ``api_preference=cv2.CAP_AVFOUNDATION`` для работы
     со встроенной камерой. Разрешение кадра по умолчанию снижено до
-    ``640``×``360`` пикселей, что позволяет ускорить работу камеры.
+    ``320``×``180`` пикселей, что позволяет ускорить работу камеры.
     """
 
     if cv2 is None:

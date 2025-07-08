@@ -130,11 +130,7 @@ def _video_frames():
     for frame in camera.stream_frames():
         if _MIRROR:
             frame = camera.cv2.flip(frame, 1)
-        bounds = camera.find_card_bounds(frame)
-        card = camera.find_card(frame) if bounds is not None else None
-        if bounds is not None:
-            x1, y1, x2, y2 = bounds
-            camera.cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
+        card = camera.find_card(frame)
         source = card if card is not None else frame
         try:
             if _MODEL_PATH is not None:
