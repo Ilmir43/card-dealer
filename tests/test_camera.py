@@ -164,3 +164,25 @@ def test_record_video(monkeypatch, tmp_path):
     assert video_file.exists()
     # should have written some frames
     assert calls["writer"].frames
+
+
+def test_find_card_detects_rectangle():
+    frame = [[[0, 0, 0] for _ in range(10)] for _ in range(10)]
+    for y in range(2, 6):
+        for x in range(3, 5):
+            frame[y][x] = [200, 200, 200]
+
+    card = camera.find_card(frame)
+
+    assert card is not None
+    assert len(card) == 4
+    assert len(card[0]) == 2
+    assert all(pixel == [200, 200, 200] for row in card for pixel in row)
+
+
+def test_find_card_returns_none():
+    frame = [[[0, 0, 0] for _ in range(5)] for _ in range(5)]
+
+    card = camera.find_card(frame)
+
+    assert card is None
