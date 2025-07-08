@@ -1,3 +1,7 @@
+ultralytics
+streamlit
+pandas
+Pillow
 flask
 opencv-python
 numpy

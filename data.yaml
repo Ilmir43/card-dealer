@@ -1,0 +1,6 @@
+# Конфигурация датасета для YOLOv8
+path: datasets/cards
+train: images/train
+val: images/val
+nc: 1
+names: [card]
