@@ -11,6 +11,31 @@ import streamlit as st
 from detector import CardDetector
 from classifier import CardClassifier, load_classifier
 
+SUIT_ICONS = {
+    "Hearts": "♥️",
+    "Diamonds": "♦️",
+    "Clubs": "♣️",
+    "Spades": "♠️",
+}
+RANK_SHORT = {
+    "Ace": "A",
+    "King": "K",
+    "Queen": "Q",
+    "Jack": "J",
+}
+
+
+def label_to_icon(label: str) -> str:
+    """Convert card label like 'Ace of Spades' to icon string."""
+    parts = label.replace("_", " ").split()
+    if "of" in parts:
+        rank = parts[0]
+        suit = parts[-1]
+        rank_char = RANK_SHORT.get(rank, rank)
+        suit_icon = SUIT_ICONS.get(suit, "")
+        return f"{rank_char}{suit_icon}"
+    return label
+
 
 @st.cache_resource  # pragma: no cover - внешняя функция
 def load_models(detector_path: str, classifier_path: str | None = None):
@@ -72,8 +97,15 @@ def main() -> None:
                 )
         img = draw_boxes(img, boxes)
         st.image(img, channels="BGR")
-        if detected_labels:
-            st.write("Обнаруженные карты: " + ", ".join(detected_labels))
+        if classifier and detected_labels:
+            icons = [label_to_icon(lbl) for lbl in detected_labels]
+            st.write("Обнаруженные карты: " + " ".join(icons))
+        elif not boxes:
+            st.info("Карты не обнаружены")
+        elif classifier is None:
+            st.info(f"Найдено {len(boxes)} карт(ы), классификатор не загружен")
+        else:
+            st.info("Карты не распознаны")
 
 
 if __name__ == "__main__":  # pragma: no cover - скрипт

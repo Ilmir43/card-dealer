@@ -32,8 +32,12 @@ def convert(csv_path: Path, output_root: Path) -> None:
         for _, row in subset.iterrows():
             src = Path(row["filepaths"])
             dst = img_dir / src.name
-            if not dst.exists():
-                shutil.copy(src, dst)
+            try:
+                if not dst.exists():
+                    shutil.copy(src, dst)
+            except FileNotFoundError:
+                print(f"Файл {src} не найден, пропуск")
+                continue
             label_file = lbl_dir / (src.stem + ".txt")
             label_file.write_text("0 0.5 0.5 1 1\n")
 
