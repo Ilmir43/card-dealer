@@ -10,6 +10,35 @@ import numpy as np
 
 from model import create_model, IMAGE_SIZE
 
+_RANKS = [
+    "Ace",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "Jack",
+    "Queen",
+    "King",
+]
+_SUITS = ["Hearts", "Diamonds", "Clubs", "Spades"]
+_CARD_NAMES = [f"{rank} of {suit}" for suit in _SUITS for rank in _RANKS]
+
+
+def _normalize_label(label: str) -> str:
+    """Convert raw class label into a human readable card name."""
+    if label.startswith("class_"):
+        idx_part = label.split("_", 1)[-1]
+        if idx_part.isdigit():
+            idx = int(idx_part)
+            if 0 <= idx < len(_CARD_NAMES):
+                return _CARD_NAMES[idx]
+    return label.replace("_", " ")
+
 # Cache loaded models to avoid reloading weights for every prediction
 _MODEL_CACHE: dict[tuple[str, str], tuple[torch.nn.Module, dict[int, str]]] = {}
 
@@ -57,6 +86,7 @@ def recognize_card(image_path: str | Path, model_path: str = "model.pt", device:
         output = model(tensor)
         pred = output.argmax(dim=1).item()
     label = idx_to_class.get(pred, "Unknown")
+    label = _normalize_label(label)
     card_type = "back" if label.endswith("_back") else "face"
     return {"type": card_type, "label": label}
 
@@ -74,6 +104,7 @@ def recognize_card_array(
         output = model(tensor)
         pred = output.argmax(dim=1).item()
     label = idx_to_class.get(pred, "Unknown")
+    label = _normalize_label(label)
     card_type = "back" if label.endswith("_back") else "face"
     return {"type": card_type, "label": label}
 
