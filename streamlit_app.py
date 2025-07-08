@@ -63,19 +63,38 @@ def main() -> None:
         return
     if uploaded.type.startswith("video"):
         data = uploaded.read()
-        tmp = Path("tmp_video.mp4")
+        tmp = Path("uploaded.mp4")
         tmp.write_bytes(data)
         cap = cv2.VideoCapture(str(tmp))
-        frames = []
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        out_path = Path("output.mp4")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        writer = cv2.VideoWriter(str(out_path), fourcc, fps, (width, height))
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
             boxes = detector.detect(frame)
+            if classifier:
+                for x1, y1, x2, y2 in boxes:
+                    roi = frame[y1:y2, x1:x2]
+                    label = classifier.predict(roi)
+                    cv2.putText(
+                        frame,
+                        label,
+                        (x1, y1 - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        (255, 0, 0),
+                        1,
+                    )
             frame = draw_boxes(frame, boxes)
-            frames.append(frame)
+            writer.write(frame)
         cap.release()
-        st.video(np.array(frames))
+        writer.release()
+        st.video(str(out_path))
     else:
         file_bytes = np.asarray(bytearray(uploaded.read()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, 1)
