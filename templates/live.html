@@ -7,17 +7,36 @@
   <body>
     <h1>Live Recognition</h1>
     <img src="{{ url_for('video_feed') }}" alt="Live feed" style="max-width:100%;height:auto;">
-    <p>Detected: <span id="label">-</span></p>
+    <div>
+      <p>Detected: <span id="label">-</span></p>
+      <img id="card_image" src="" alt="Card" style="max-width:200px;display:none;">
+    </div>
+    <form action="{{ url_for('live') }}" method="post" style="margin-top:1em;">
+      <label for="model_path">Model:</label>
+      <select id="model_path" name="model_path">
+        <option value="" {% if not model_path %}selected{% endif %}>Template recognizer</option>
+        {% for m in models %}
+        <option value="{{ m }}" {% if model_path and m == model_path %}selected{% endif %}>{{ m.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Apply</button>
+    </form>
     <p><a href="{{ url_for('capture') }}">Capture Still</a></p>
-    <p><a href="{{ url_for('select_model') }}">Select Model</a></p>
     <script>
-      async function updateLabel() {
-        const resp = await fetch("{{ url_for('current_label') }}");
+      async function updateCard() {
+        const resp = await fetch("{{ url_for('current_card') }}");
         const data = await resp.json();
         document.getElementById('label').innerText = data.label || '-';
+        const img = document.getElementById('card_image');
+        if (data.image) {
+          img.src = data.image + '?t=' + Date.now();
+          img.style.display = 'block';
+        } else {
+          img.style.display = 'none';
+        }
       }
-      setInterval(updateLabel, 1000);
-      updateLabel();
+      setInterval(updateCard, 1000);
+      updateCard();
     </script>
   </body>
 </html>
