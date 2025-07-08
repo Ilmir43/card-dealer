@@ -9,10 +9,20 @@ import shutil
 import pandas as pd
 
 
+def _map_split(name: str) -> str:
+    """Map dataset split names to YOLO conventions."""
+    name = name.strip().lower()
+    if name in {"valid", "validation"}:
+        return "val"
+    return name
+
+
 def convert(csv_path: Path, output_root: Path) -> None:
+    """Convert classification CSV to YOLOv8 dataset structure."""
     df = pd.read_csv(csv_path)
-    for split in {"train", "valid", "test"}:
-        subset = df[df["data set"] == split]
+    splits = {_map_split(s) for s in df["data set"].dropna().unique()}
+    for split in splits:
+        subset = df[df["data set"].str.strip().str.lower().map(_map_split) == split]
         if subset.empty:
             continue
         img_dir = output_root / "images" / split
