@@ -28,12 +28,12 @@ def _apply_settings(cap: Any, settings: Dict[str, Any] | None) -> None:
             cap.set(prop, value)
 
 
-def find_card(frame: Any) -> Any | None:
-    """Найти изображение карты на кадре.
+def find_card_bounds(frame: Any) -> tuple[int, int, int, int] | None:
+    """Найти координаты карты на кадре.
 
-    Алгоритм использует простое пороговое выделение светлой области и
-    возвращает фрагмент изображения, ограниченный минимальным прямоугольником.
-    Если подходящая область не найдена, функция возвращает ``None``.
+    Возвращает кортеж ``(min_x, min_y, max_x, max_y)`` либо ``None`` если
+    подходящая область не найдена. Алгоритм совпадает с тем, что используется
+    в :func:`find_card`.
     """
 
     # Determine image dimensions
@@ -66,6 +66,21 @@ def find_card(frame: Any) -> Any | None:
     if max_x < min_x or max_y < min_y:
         return None
 
+    return min_x, min_y, max_x, max_y
+
+
+def find_card(frame: Any) -> Any | None:
+    """Найти изображение карты на кадре.
+
+    Алгоритм использует простое пороговое выделение светлой области и
+    возвращает фрагмент изображения, ограниченный минимальным прямоугольником.
+    Если подходящая область не найдена, функция возвращает ``None``.
+    """
+    bounds = find_card_bounds(frame)
+    if bounds is None:
+        return None
+
+    min_x, min_y, max_x, max_y = bounds
     try:
         card = frame[min_y : max_y + 1, min_x : max_x + 1]
         if hasattr(card, "copy"):
