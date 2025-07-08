@@ -15,6 +15,25 @@ from flask import (
 from . import camera, recognizer
 import predict
 
+# List of all standard playing cards used for manual labeling
+_RANKS = [
+    "Ace",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "Jack",
+    "Queen",
+    "King",
+]
+_SUITS = ["Hearts", "Diamonds", "Clubs", "Spades"]
+CARD_NAMES = [f"{rank} of {suit}" for suit in _SUITS for rank in _RANKS]
+
 ROOT_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = ROOT_DIR / "templates"
 app = Flask(__name__, template_folder=str(TEMPLATE_DIR))
@@ -69,6 +88,7 @@ def capture() -> str:
         "confirm.html",
         image_name=_CAPTURE_NAME,
         prediction=prediction,
+        card_names=CARD_NAMES,
         back_url=url_for("capture"),
     )
 
@@ -93,6 +113,7 @@ def verify_upload() -> str:
                 "confirm.html",
                 image_name=_UPLOAD_NAME,
                 prediction=prediction,
+                card_names=CARD_NAMES,
                 back_url=url_for("verify_upload"),
             )
         return redirect(url_for("verify_upload"))
