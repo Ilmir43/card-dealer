@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import shutil
+import csv
 from typing import Dict, List
 
 try:  # pragma: no cover - OpenCV/Numpy may not be installed
@@ -183,5 +184,41 @@ def save_labeled_image(image_path: Path, label: str) -> Path:
     # immediately and multiple templates per label are reloaded correctly
     global _TEMPLATES
     _TEMPLATES = None
+    return dest
+
+
+def log_verification(filename: str, predicted: str, actual: str) -> None:
+    """Append a verification record to ``verify_log.csv`` in :data:`DATASET_DIR`."""
+
+    log_path = DATASET_DIR / "verify_log.csv"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    new_file = not log_path.exists()
+    with log_path.open("a", newline="") as f:
+        writer = csv.writer(f)
+        if new_file:
+            writer.writerow(["file", "predicted", "actual"])
+        writer.writerow([filename, predicted, actual])
+
+
+def record_verification(image_path: Path, predicted: str, actual: str) -> Path:
+    """Save the verified image and log the prediction result.
+
+    Parameters
+    ----------
+    image_path:
+        Temporary path of the image being verified.
+    predicted:
+        Label predicted by the recognizer.
+    actual:
+        Label provided by the user as the correct one.
+
+    Returns
+    -------
+    Path
+        Destination of the saved image inside :data:`DATASET_DIR`.
+    """
+
+    dest = save_labeled_image(image_path, actual)
+    log_verification(dest.name, predicted, actual)
     return dest
 
