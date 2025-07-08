@@ -25,6 +25,8 @@ _CAPTURE_NAME = "_capture.png"
 _MODEL_PATH: Path | None = None
 # Latest label recognized in the video stream
 _LATEST_LABEL: str = ""
+# Mirror video feed horizontally when True
+_MIRROR: bool = False
 
 
 def _list_models() -> list[Path]:
@@ -78,6 +80,8 @@ def _video_frames():
     """Generate JPEG frames with recognition overlay."""
     global _LATEST_LABEL
     for frame in camera.stream_frames():
+        if _MIRROR:
+            frame = camera.cv2.flip(frame, 1)
         try:
             if _MODEL_PATH is not None:
                 result = predict.recognize_card_array(
@@ -115,13 +119,14 @@ def video_feed() -> Response:
 @app.route("/live", methods=["GET", "POST"])
 def live() -> str:
     """Display a page with the live video feed and model selection."""
-    global _MODEL_PATH
+    global _MODEL_PATH, _MIRROR
     if request.method == "POST":
         path = request.form.get("model_path", "").strip()
         _MODEL_PATH = Path(path) if path else None
+        _MIRROR = bool(request.form.get("mirror"))
         return redirect(url_for("live"))
     return render_template(
-        "live.html", model_path=_MODEL_PATH, models=_list_models()
+        "live.html", model_path=_MODEL_PATH, models=_list_models(), mirror=_MIRROR
     )
 
 

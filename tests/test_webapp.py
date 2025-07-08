@@ -76,3 +76,45 @@ def test_video_frames_handles_errors(monkeypatch):
     gen = webapp._video_frames()
     data = next(gen)
     assert b"data" in data
+
+
+def test_video_frames_mirror(monkeypatch):
+    frames = ["img"]
+
+    def dummy_stream_frames():
+        for f in frames:
+            yield f
+
+    def dummy_recognize(image):
+        return "Ace"
+
+    calls = {}
+
+    class DummyCV2:
+        FONT_HERSHEY_SIMPLEX = 0
+
+        def flip(self, frame, mode):
+            calls["flip"] = (frame, mode)
+            return frame
+
+        def putText(self, frame, text, pos, font, scale, color, thickness):
+            pass
+
+        def imencode(self, ext, frame):
+            return True, DummyBuffer(frame)
+
+    class DummyBuffer:
+        def __init__(self, frame):
+            self.frame = frame
+
+        def tobytes(self):
+            return b"data" + bytes(self.frame, "utf-8")
+
+    monkeypatch.setattr(webapp.camera, "stream_frames", dummy_stream_frames)
+    monkeypatch.setattr(webapp.recognizer, "recognize_card_array", dummy_recognize)
+    monkeypatch.setattr(webapp.camera, "cv2", DummyCV2())
+    monkeypatch.setattr(webapp, "_MIRROR", True)
+
+    gen = webapp._video_frames()
+    next(gen)
+    assert calls["flip"] == ("img", 1)
