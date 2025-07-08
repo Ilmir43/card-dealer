@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import shutil
-import pandas as pd
+import csv
 
 
 def _map_split(name: str) -> str:
@@ -17,29 +17,66 @@ def _map_split(name: str) -> str:
     return name
 
 
+def _unique_filename(src: Path) -> str:
+    """Return a name composed of parent directory and file name."""
+    parent = src.parent.name
+    return f"{parent}_{src.name}"
+
+
+def _read_csv(csv_path: Path) -> list[dict[str, str]]:
+    with csv_path.open(newline="") as f:
+        reader = csv.DictReader(f)
+        return [row for row in reader]
+
+
 def convert(csv_path: Path, output_root: Path) -> None:
-    """Convert classification CSV to YOLOv8 dataset structure."""
-    df = pd.read_csv(csv_path)
-    splits = {_map_split(s) for s in df["data set"].dropna().unique()}
+    """Convert classification CSV to YOLOv8 dataset structure with labels."""
+    rows = _read_csv(csv_path)
+    if not rows:
+        return
+
+    field_names = rows[0].keys()
+    if "filepaths" not in field_names or "data set" not in field_names:
+        raise ValueError("CSV должен содержать колонки 'filepaths' и 'data set'")
+
+    if "class index" not in field_names:
+        if "labels" not in field_names:
+            raise ValueError("CSV должен содержать 'class index' или 'labels'")
+        labels = sorted({row["labels"] for row in rows})
+        mapping = {name: i for i, name in enumerate(labels)}
+        for row in rows:
+            row["class index"] = str(mapping[row["labels"]])
+
+    splits = {_map_split(row["data set"]) for row in rows if row.get("data set")}
+
     for split in splits:
-        subset = df[df["data set"].str.strip().str.lower().map(_map_split) == split]
-        if subset.empty:
+        subset = [r for r in rows if _map_split(r.get("data set", "")) == split]
+        if not subset:
             continue
+
         img_dir = output_root / "images" / split
         lbl_dir = output_root / "labels" / split
         img_dir.mkdir(parents=True, exist_ok=True)
         lbl_dir.mkdir(parents=True, exist_ok=True)
-        for _, row in subset.iterrows():
+
+        for row in subset:
             src = Path(row["filepaths"])
-            dst = img_dir / src.name
-            try:
-                if not dst.exists():
-                    shutil.copy(src, dst)
-            except FileNotFoundError:
+            if not src.exists():
                 print(f"Файл {src} не найден, пропуск")
                 continue
-            label_file = lbl_dir / (src.stem + ".txt")
-            label_file.write_text("0 0.5 0.5 1 1\n")
+
+            new_name = _unique_filename(src)
+            dst_img = img_dir / new_name
+            dst_lbl = lbl_dir / (dst_img.stem + ".txt")
+
+            try:
+                shutil.copy(src, dst_img)
+            except Exception as e:
+                print(f"Ошибка при копировании {src}: {e}")
+                continue
+
+            cls = int(row["class index"])
+            dst_lbl.write_text(f"{cls} 0.5 0.5 1 1\n")
 
 
 if __name__ == "__main__":  # pragma: no cover - script usage
