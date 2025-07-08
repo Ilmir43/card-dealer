@@ -55,15 +55,25 @@ def main() -> None:
         file_bytes = np.asarray(bytearray(uploaded.read()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, 1)
         boxes = detector.detect(img)
+        detected_labels: List[str] = []
         if classifier:
-            labels = []
             for x1, y1, x2, y2 in boxes:
                 roi = img[y1:y2, x1:x2]
                 label = classifier.predict(roi)
-                labels.append(label)
-                cv2.putText(img, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+                detected_labels.append(label)
+                cv2.putText(
+                    img,
+                    label,
+                    (x1, y1 - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (255, 0, 0),
+                    1,
+                )
         img = draw_boxes(img, boxes)
         st.image(img, channels="BGR")
+        if detected_labels:
+            st.write("Обнаруженные карты: " + ", ".join(detected_labels))
 
 
 if __name__ == "__main__":  # pragma: no cover - скрипт
