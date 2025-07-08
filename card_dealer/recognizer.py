@@ -59,6 +59,9 @@ def _load_templates() -> Dict[str, List["np.ndarray"]]:
         for img_path in DATASET_DIR.iterdir():
             if not img_path.is_file():
                 continue
+            if img_path.name.startswith("_"):
+                # Temporary files like _upload.png should not be used as templates
+                continue
             stem = img_path.stem
             base = stem.rsplit("_", 1)[0] if stem.rsplit("_", 1)[-1].isdigit() else stem
             label = base.replace("_", " ")
