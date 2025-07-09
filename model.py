@@ -8,8 +8,14 @@ IMAGE_SIZE = (224, 224)
 
 
 def create_model(num_classes: int) -> nn.Module:
-    """Return a ResNet18 model with custom classification head."""
+    """Вернуть модель ResNet18 с расширенной классификационной головой."""
     model = resnet18(weights=None)
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
+    in_features = model.fc.in_features
+    model.fc = nn.Sequential(
+        nn.Linear(in_features, 512),
+        nn.ReLU(inplace=True),
+        nn.Dropout(0.2),
+        nn.Linear(512, num_classes),
+    )
     return model
 

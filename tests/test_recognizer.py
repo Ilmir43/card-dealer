@@ -87,3 +87,26 @@ def test_recognize_card_array(monkeypatch, tmp_path):
 
     assert result == "Ace of Hearts"
 
+
+class LowScoreCV2(DummyCV2):
+    def matchTemplate(self, image, templ, method):
+        return [[0.1]]
+
+
+def test_recognize_card_no_match(monkeypatch, tmp_path):
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    (dataset / "Ace_of_Hearts.png").write_text("a")
+
+    dummy_cv2 = LowScoreCV2()
+    monkeypatch.setattr(recognizer, "cv2", dummy_cv2)
+    monkeypatch.setattr(recognizer, "DATASET_DIR", dataset)
+    monkeypatch.setattr(recognizer, "_TEMPLATES", None)
+
+    target = tmp_path / "target.png"
+    target.write_text("img")
+
+    result = recognizer.recognize_card(target)
+
+    assert result == "Нет карты"
+
