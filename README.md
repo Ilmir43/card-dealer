@@ -49,6 +49,9 @@ pip install -r requirements.txt
 
 - Подключите USB‑камеру или камеру Raspberry Pi, чтобы она была доступна как `/dev/video0`.
 - При необходимости измените индекс устройства или разрешение в функции `capture_image`.
+- На macOS Ventura и iOS 16 можно использовать **Continuity Camera** и задействовать камеру iPhone.
+  После подключения iPhone выберите его как источник (обычно устройство с индексом `1`) и,
+  при необходимости, передайте `api_preference=cv2.CAP_AVFOUNDATION`.
 
 ### Серво
 
