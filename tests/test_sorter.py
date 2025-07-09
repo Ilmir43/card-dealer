@@ -1,55 +1,38 @@
-from pathlib import Path
-
-from card_dealer import sorter
-
-
-def _fake_cosine(x, y):
-    def dot(a, b):
-        return sum(i * j for i, j in zip(a, b))
-
-    import math
-
-    x_norm = math.sqrt(dot(x, x))
-    return [dot(x, v) / (x_norm * math.sqrt(dot(v, v))) for v in y]
+from card_dealer.sorter import is_card_back, sort_by_back
+from card_dealer.servo_controller import ServoController, _HardwareInterface
 
 
-def test_detect_game(monkeypatch, tmp_path):
-    img = tmp_path / "img.png"
-    img.write_text("img")
+class DummyDriver(_HardwareInterface):
+    def __init__(self):
+        self.angles = []
 
-    emb_db = [[1.0, 0.0], [0.0, 1.0]]
-    games = ["uno", "munchkin"]
-
-    monkeypatch.setattr(sorter, "_load_embeddings", lambda path: (emb_db, games))
-    monkeypatch.setattr(sorter, "_extract_feature", lambda p: [1.0, 0.0])
-    monkeypatch.setattr(sorter, "_cosine_similarity", _fake_cosine)
-
-    game = sorter.detect_game(img, embeddings_path=Path("db.pkl"), threshold=0.5)
-    assert game == "uno"
+    def dispense(self, angle: float = 90) -> None:  # pragma: no cover - simple
+        self.angles.append(angle)
 
 
-def test_sort_cards(monkeypatch, tmp_path):
-    imgs = [tmp_path / f"img{i}.png" for i in range(3)]
-    for p in imgs:
-        p.write_text("img")
+def test_is_card_back():
+    back_img = [[[10 for _ in range(3)] for _ in range(5)] for _ in range(5)]
+    face_img = [[[10 for _ in range(3)] for _ in range(5)] for _ in range(5)]
+    face_img[2][2] = [200, 200, 200]
 
-    features = {
-        imgs[0]: [1.0, 0.0],
-        imgs[1]: [0.0, 1.0],
-        imgs[2]: [0.2, 0.2],
-    }
+    assert is_card_back(back_img)
+    assert not is_card_back(face_img)
 
-    emb_db = [[1.0, 0.0], [0.0, 1.0]]
-    games = ["uno", "munchkin"]
 
-    monkeypatch.setattr(sorter, "_load_embeddings", lambda path: (emb_db, games))
-    monkeypatch.setattr(sorter, "_extract_feature", lambda p: features[p])
-    monkeypatch.setattr(sorter, "_cosine_similarity", _fake_cosine)
+def test_sort_by_back():
+    driver_main = DummyDriver()
+    driver_sort = DummyDriver()
+    servo_main = ServoController(driver=driver_main)
+    servo_sort = ServoController(driver=driver_sort)
 
-    result = sorter.sort_cards(imgs, embeddings_path=Path("db.pkl"), threshold=0.8)
+    back_img = [[[0 for _ in range(3)] for _ in range(4)] for _ in range(4)]
+    face_img = [[[0 for _ in range(3)] for _ in range(4)] for _ in range(4)]
+    face_img[0][0] = [255, 255, 255]
 
-    assert result == {
-        "uno": [imgs[0]],
-        "munchkin": [imgs[1]],
-        "unknown": [imgs[2]],
-    }
+    sort_by_back(back_img, servo_main, servo_sort, back_angle=30, face_angle=0, deal_angle=45)
+    assert driver_sort.angles[-1] == 30
+    assert driver_main.angles[-1] == 45
+
+    sort_by_back(face_img, servo_main, servo_sort, back_angle=30, face_angle=0, deal_angle=45)
+    assert driver_sort.angles[-1] == 0
+    assert driver_main.angles[-1] == 45
