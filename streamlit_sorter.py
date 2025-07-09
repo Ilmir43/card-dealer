@@ -1,71 +1,69 @@
+"""Интерфейс Streamlit для сортировки изображений карт по играм."""
+from __future__ import annotations
+
 import tempfile
-import time
 from pathlib import Path
 
+import cv2
 import streamlit as st
 
-from card_dealer import camera, recognizer
-from card_dealer.servo_controller import ServoController
+from card_dealer import recognizer
+from card_dealer import sorter
+from card_dealer.cards import CardClasses
 
 
-def get_cards() -> list[str]:
-    """Вернуть названия карт из каталога ``dataset``."""
-    try:
-        templates = recognizer._load_templates()
-    except Exception:
-        return []
-    return sorted(templates.keys())
-
-
-def init_servo(key: str, pin: int) -> ServoController | None:
-    """Создать и сохранить сервопривод в ``st.session_state``."""
-    if key not in st.session_state:
-        try:
-            st.session_state[key] = ServoController(pwm_pin=pin)
-        except Exception as exc:  # pragma: no cover - может не быть оборудования
-            st.warning(f"Серво {pin} недоступно: {exc}")
-            st.session_state[key] = None
-    return st.session_state[key]
-
-
-# Основной интерфейс
 st.title("Сортировка карт")
 
-available_cards = get_cards()
-selected = st.multiselect("Исключить карты", available_cards)
-
-pin_main = st.sidebar.number_input(
-    "PIN основного сервопривода", value=11, step=1
-)
-pin_sort = st.sidebar.number_input(
-    "PIN сортирующего сервопривода", value=12, step=1
-)
-angle_main = st.sidebar.slider(
-    "Угол выдачи", 30, 150, 90
-)
-angle_sort = st.sidebar.slider(
-    "Угол отклонения", 0, 180, 30
+# Выбор карт, которые нужно исключить из обработки
+excluded = st.multiselect(
+    "Исключить карты",
+    CardClasses.LABELS,
+    format_func=CardClasses.label_to_icon,
 )
 
-if st.button("Начать сортировку"):
-    st.session_state["sorting"] = True
-if st.button("Остановить"):
-    st.session_state["sorting"] = False
+uploaded_images = st.file_uploader(
+    "Изображения карт", type=["png", "jpg", "jpeg"], accept_multiple_files=True
+)
+video_file = st.file_uploader("Видео", type=["mp4", "avi", "mov"])
 
-if st.session_state.get("sorting"):
-    servo_main = init_servo("servo_main", pin_main)
-    servo_sort = init_servo("servo_sort", pin_sort)
-    if servo_main and servo_sort:
-        img_path = Path(tempfile.gettempdir()) / "current_card.png"
-        camera.capture_image(img_path)
-        label = recognizer.recognize_card(img_path)
-        st.write(f"Распознано: {label}")
+if st.button("Отсортировать"):
+    temp_paths: list[Path] = []
 
-        if label in selected:
-            servo_sort.dispense_card(angle=angle_sort)
-        else:
-            servo_sort.dispense_card(angle=0)
-        servo_main.dispense_card(angle=angle_main)
+    # Сохранение загруженных изображений
+    if uploaded_images:
+        for file in uploaded_images:
+            tmp = Path(tempfile.gettempdir()) / file.name
+            with open(tmp, "wb") as f:
+                f.write(file.read())
+            temp_paths.append(tmp)
 
-        time.sleep(0.1)
-        st.experimental_rerun()
+    # Разбор видео на кадры
+    if video_file is not None:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_vid:
+            tmp_vid.write(video_file.read())
+            video_path = Path(tmp_vid.name)
+        cap = cv2.VideoCapture(str(video_path))
+        idx = 0
+        while True:
+            success, frame = cap.read()
+            if not success:
+                break
+            frame_path = Path(tempfile.gettempdir()) / f"frame_{idx}.jpg"
+            cv2.imwrite(str(frame_path), frame)
+            temp_paths.append(frame_path)
+            idx += 1
+        cap.release()
+
+    # Отфильтровать исключённые карты
+    images_for_sort: list[Path] = []
+    for path in temp_paths:
+        label = recognizer.recognize_card(path)
+        if label not in excluded:
+            images_for_sort.append(path)
+
+    groups = sorter.sort_cards(images_for_sort)
+    for game, paths in groups.items():
+        st.subheader(game)
+        st.write(
+            ", ".join(CardClasses.label_to_icon(recognizer.recognize_card(p)) for p in paths)
+        )

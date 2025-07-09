@@ -14,25 +14,13 @@ from predict import recognize_card_array
 from recognize_card import load_embeddings, find_best
 from card_dealer import recognizer
 from card_dealer import camera as cam
-from card_dealer.servo_controller import ServoController
+from card_dealer.cards import CardClasses
 
 import torch
 from torch import nn
 from torchvision import models, transforms
 from model import IMAGE_SIZE
 
-SUIT_ICONS = {
-    "Hearts": "♥️",
-    "Diamonds": "♦️",
-    "Clubs": "♣️",
-    "Spades": "♠️",
-}
-RANK_SHORT = {
-    "Ace": "A",
-    "King": "K",
-    "Queen": "Q",
-    "Jack": "J",
-}
 
 # Кэши для эмбеддингов и модели извлечения признаков
 _EMBED_CACHE: dict[str, tuple[list[str], list[str], np.ndarray]] = {}
@@ -44,27 +32,6 @@ _array_transform = transforms.Compose([
 ])
 
 
-def get_servo(pin: int) -> ServoController | None:
-    """Initialize a :class:`ServoController` for the given pin."""
-    if "servo" not in st.session_state:
-        try:
-            st.session_state["servo"] = ServoController(pwm_pin=pin)
-        except Exception as exc:  # pragma: no cover - hardware optional
-            st.warning(f"Серво недоступно: {exc}")
-            st.session_state["servo"] = None
-    return st.session_state["servo"]
-
-
-def label_to_icon(label: str) -> str:
-    """Преобразовать название карты в удобный вид."""
-    parts = label.replace("_", " ").split()
-    if "of" in parts:
-        rank = parts[0]
-        suit = parts[-1]
-        rank_char = RANK_SHORT.get(rank, rank)
-        suit_icon = SUIT_ICONS.get(suit, "")
-        return f"{rank_char}{suit_icon}"
-    return label
 
 
 def list_models() -> list[Path]:
@@ -142,7 +109,7 @@ def recognize_cards_in_video(
 
     return cards
 
-def dataset_page(angle: float, servo_pin: int) -> None:
+def dataset_page() -> None:
     """Page for capturing images into the dataset."""
 
     st.header("Сбор изображений")
@@ -153,10 +120,7 @@ def dataset_page(angle: float, servo_pin: int) -> None:
     tags = st.text_input("Теги через запятую", "")
     no_crop = st.checkbox("Не обрезать", value=False)
 
-    if st.button("Следующая карта", key="dispense_dataset"):
-        servo = get_servo(servo_pin)
-        if servo:
-            servo.dispense_card(angle=angle)
+
 
     img_data = st.camera_input("Сделать снимок")
     if img_data is not None and game and card_name:
@@ -188,7 +152,7 @@ def dataset_page(angle: float, servo_pin: int) -> None:
         st.success(f"Сохранено {img_path}")
 
 
-def recognize_page(angle: float, servo_pin: int) -> None:
+def recognize_page() -> None:
     st.header("Распознавание игральных карт")
 
     method = st.sidebar.radio(
@@ -252,7 +216,7 @@ def recognize_page(angle: float, servo_pin: int) -> None:
         st.image(img, channels="BGR")
         label = result.get("label", "Unknown")
         if label != "Unknown":
-            st.success(f"Карта: {label_to_icon(label)}")
+            st.success(f"Карта: {CardClasses.label_to_icon(label)}")
         else:
             st.info("Карта не распознана")
 
@@ -264,10 +228,7 @@ def recognize_page(angle: float, servo_pin: int) -> None:
             recognizer.record_incorrect(Path(source_path), label)
             st.info("Отмечено для переобучения")
 
-    if st.button("Следующая карта", key="dispense_rec"):
-        servo = get_servo(servo_pin)
-        if servo:
-            servo.dispense_card(angle=angle)
+
 
     st.subheader("Видео")
     video_file = st.file_uploader(
@@ -281,7 +242,7 @@ def recognize_page(angle: float, servo_pin: int) -> None:
             method=method,
         )
         if labels:
-            st.success(" ".join(label_to_icon(l) for l in labels))
+            st.success(" ".join(CardClasses.label_to_icon(l) for l in labels))
         else:
             st.info("Карты не распознаны")
 
@@ -294,19 +255,16 @@ def recognize_page(angle: float, servo_pin: int) -> None:
             else:
                 res = recognize_card_array(frame, model_path=str(model_path))
             placeholder.image(frame, channels="BGR")
-            label_ph.write(label_to_icon(res.get("label", "Unknown")))
+            label_ph.write(CardClasses.label_to_icon(res.get("label", "Unknown")))
 
 
 def main() -> None:
     st.title("Card Dealer")
     page = st.sidebar.selectbox("Режим", ["Распознавание", "Сбор датасета"])
-    servo_pin = st.sidebar.number_input("Servo PIN", value=11, step=1)
-    angle = st.sidebar.slider("Угол сервопривода", 30, 150, 90)
-
     if page == "Сбор датасета":
-        dataset_page(angle, servo_pin)
+        dataset_page()
     else:
-        recognize_page(angle, servo_pin)
+        recognize_page()
 
 
 if __name__ == "__main__":  # pragma: no cover - скрипт
