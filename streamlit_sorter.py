@@ -64,6 +64,20 @@ if st.button("Отсортировать"):
     groups = sorter.sort_cards(images_for_sort)
     for game, paths in groups.items():
         st.subheader(game)
-        st.write(
-            ", ".join(CardClasses.label_to_icon(recognizer.recognize_card(p)) for p in paths)
-        )
+
+        unique_labels: list[str] = []
+        seen: set[str] = set()
+        for p in paths:
+            lbl = recognizer.recognize_card(p)
+            if lbl in excluded or lbl in seen:
+                continue
+            unique_labels.append(lbl)
+            seen.add(lbl)
+
+        if unique_labels:
+            icons = [CardClasses.label_to_icon(l) for l in unique_labels]
+            cols = st.columns(len(icons))
+            for col, icon in zip(cols, icons):
+                col.write(icon)
+        else:
+            st.write("—")
