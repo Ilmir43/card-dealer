@@ -1,4 +1,4 @@
-"""Демо Streamlit для классификации изображений карт."""
+"""Демо Streamlit для классификации и сбора изображений карт."""
 from __future__ import annotations
 
 import cv2
@@ -7,10 +7,14 @@ import streamlit as st
 from pathlib import Path
 from typing import List
 import tempfile
+import datetime
+import json
 
 from predict import recognize_card_array
 from recognize_card import load_embeddings, find_best
 from card_dealer import recognizer
+from card_dealer import camera as cam
+from card_dealer.servo_controller import ServoController
 
 import torch
 from torch import nn
@@ -38,6 +42,17 @@ _array_transform = transforms.Compose([
     transforms.Resize(IMAGE_SIZE),
     transforms.ToTensor(),
 ])
+
+
+def get_servo(pin: int) -> ServoController | None:
+    """Initialize a :class:`ServoController` for the given pin."""
+    if "servo" not in st.session_state:
+        try:
+            st.session_state["servo"] = ServoController(pwm_pin=pin)
+        except Exception as exc:  # pragma: no cover - hardware optional
+            st.warning(f"Серво недоступно: {exc}")
+            st.session_state["servo"] = None
+    return st.session_state["servo"]
 
 
 def label_to_icon(label: str) -> str:
@@ -127,8 +142,54 @@ def recognize_cards_in_video(
 
     return cards
 
-def main() -> None:
-    st.title("Распознавание игральных карт")
+def dataset_page(angle: float, servo_pin: int) -> None:
+    """Page for capturing images into the dataset."""
+
+    st.header("Сбор изображений")
+    game = st.text_input("Игра")
+    card_name = st.text_input("Название карты")
+    card_type = st.selectbox("Тип", ["face", "back"])
+    expansion = st.text_input("Дополнение", "")
+    tags = st.text_input("Теги через запятую", "")
+    no_crop = st.checkbox("Не обрезать", value=False)
+
+    if st.button("Выдать карту", key="dispense_dataset"):
+        servo = get_servo(servo_pin)
+        if servo:
+            servo.dispense_card(angle=angle)
+
+    img_data = st.camera_input("Сделать снимок")
+    if img_data is not None and game and card_name:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_dir = Path("datasets") / game / card_name
+        img_path = base_dir / f"{timestamp}.jpg"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        with open(img_path, "wb") as f:
+            f.write(img_data.getvalue())
+
+        meta = {
+            "game": game,
+            "card_name": card_name,
+            "type": card_type,
+            "expansion": expansion or None,
+            "tags": [t.strip() for t in tags.split(",") if t.strip()],
+        }
+        with open(img_path.with_suffix(".json"), "w", encoding="utf8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+
+        if not no_crop:
+            arr = np.frombuffer(img_data.getvalue(), dtype=np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            card = cam.find_card(img)
+            if card is not None:
+                crop_path = base_dir / f"{timestamp}_crop.jpg"
+                cv2.imwrite(str(crop_path), card)
+
+        st.success(f"Сохранено {img_path}")
+
+
+def recognize_page(angle: float, servo_pin: int) -> None:
+    st.header("Распознавание игральных карт")
 
     method = st.sidebar.radio(
         "Метод распознавания", ["model", "embeddings"],
@@ -196,7 +257,12 @@ def main() -> None:
             recognizer.record_incorrect(Path(source_path), label)
             st.info("Отмечено для переобучения")
 
-    st.header("Видео")
+    if st.button("Выдать карту", key="dispense_rec"):
+        servo = get_servo(servo_pin)
+        if servo:
+            servo.dispense_card(angle=angle)
+
+    st.subheader("Видео")
     video_file = st.file_uploader(
         "Видео с картами", type=["mp4", "avi", "mov"], key="video"
     )
@@ -211,6 +277,29 @@ def main() -> None:
             st.success(" ".join(label_to_icon(l) for l in labels))
         else:
             st.info("Карты не распознаны")
+
+    if st.checkbox("Распознавать с камеры"):
+        placeholder = st.empty()
+        label_ph = st.empty()
+        for frame in cam.stream_frames():
+            if method == "embeddings":
+                res = recognize_card_embeddings(frame, embeddings_path)
+            else:
+                res = recognize_card_array(frame, model_path=str(model_path))
+            placeholder.image(frame, channels="BGR")
+            label_ph.write(label_to_icon(res.get("label", "Unknown")))
+
+
+def main() -> None:
+    st.title("Card Dealer")
+    page = st.sidebar.selectbox("Режим", ["Распознавание", "Сбор датасета"])
+    servo_pin = st.sidebar.number_input("Servo PIN", value=11, step=1)
+    angle = st.sidebar.slider("Угол сервопривода", 30, 150, 90)
+
+    if page == "Сбор датасета":
+        dataset_page(angle, servo_pin)
+    else:
+        recognize_page(angle, servo_pin)
 
 
 if __name__ == "__main__":  # pragma: no cover - скрипт
