@@ -160,9 +160,16 @@ def main() -> None:
         )
 
     uploaded = st.file_uploader("Изображение карты", type=["png", "jpg", "jpeg"])
+    camera_data = st.camera_input("Сделать снимок")
     img = None
     source_path = None
-    if uploaded is not None:
+    if camera_data is not None:
+        arr = np.frombuffer(camera_data.getvalue(), dtype=np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img is None:
+            st.error("Не удалось прочитать изображение")
+            return
+    elif uploaded is not None:
         file_bytes = np.asarray(bytearray(uploaded.read()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         if img is None:
