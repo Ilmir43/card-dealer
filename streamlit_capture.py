@@ -17,6 +17,9 @@ def save_image(data: bytes, path: Path) -> None:
 
 def main() -> None:
     st.title("Сбор изображений карт")
+    st.caption(
+        "На macOS можно выбрать iPhone через Continuity Camera в настройках камеры"
+    )
 
     game = st.text_input("Игра")
     card_name = st.text_input("Название карты")
