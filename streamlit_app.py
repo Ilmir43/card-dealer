@@ -141,6 +141,7 @@ def handle_buttons(power: bool, up: bool, down: bool, left: bool, right: bool, o
             state.menu_index = 0
         else:
             state.screen = "off"
+        st.experimental_rerun()
         return
 
     if state.screen == "off":
@@ -199,13 +200,18 @@ def main() -> None:
 
     disabled = st.session_state.screen == "off"
 
-    col_buttons = st.columns(6)
-    power = col_buttons[0].button("🔘 ВКЛ/ВЫКЛ")
-    up = col_buttons[1].button("🔼 Вверх", disabled=disabled)
-    down = col_buttons[2].button("🔽 Вниз", disabled=disabled)
-    left = col_buttons[3].button("◀️ Влево", disabled=disabled)
-    right = col_buttons[4].button("▶️ Вправо", disabled=disabled)
-    ok = col_buttons[5].button("🆗 ОК", disabled=disabled)
+    power = st.button("🔘 ВКЛ/ВЫКЛ", key="btn_power")
+
+    row_up = st.columns(3)
+    up = row_up[1].button("🔼 Вверх", disabled=disabled, key="btn_up")
+
+    row_mid = st.columns(3)
+    left = row_mid[0].button("◀️ Влево", disabled=disabled, key="btn_left")
+    ok = row_mid[1].button("🆗 ОК", disabled=disabled, key="btn_ok")
+    right = row_mid[2].button("▶️ Вправо", disabled=disabled, key="btn_right")
+
+    row_down = st.columns(3)
+    down = row_down[1].button("🔽 Вниз", disabled=disabled, key="btn_down")
 
     handle_buttons(power, up, down, left, right, ok)
 
