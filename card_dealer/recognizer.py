@@ -225,3 +225,25 @@ def record_verification(image_path: Path, predicted: str, actual: str) -> Path:
     log_verification(dest.name, predicted, actual)
     return dest
 
+
+def log_incorrect(filename: str, predicted: str) -> None:
+    """Append a record about an incorrect prediction."""
+
+    log_path = DATASET_DIR / "incorrect_log.csv"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    new_file = not log_path.exists()
+    with log_path.open("a", newline="") as f:
+        writer = csv.writer(f)
+        if new_file:
+            writer.writerow(["file", "predicted"])
+        writer.writerow([filename, predicted])
+
+
+def record_incorrect(image_path: Path, predicted: str) -> Path:
+    """Save image marked as misrecognized and log the prediction."""
+
+    label = f"Incorrect_{predicted.replace(' ', '_')}"
+    dest = save_labeled_image(image_path, label)
+    log_incorrect(dest.name, predicted)
+    return dest
+
