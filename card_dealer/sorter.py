@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, Dict, List, Tuple
+from typing import Iterable, Dict, List, Tuple, Sequence, Any, Callable
 
 import pickle
 try:  # pragma: no cover - optional dependency
@@ -47,6 +47,38 @@ _model: nn.Module | None = None
 _transform: transforms.Compose | None = None
 _db_embeddings: np.ndarray | None = None
 _db_games: List[str] | None = None
+
+
+def is_card_back(
+    image: Sequence[Sequence[Any]], *, classifier: Callable[[Sequence[Sequence[Any]]], bool]
+) -> bool:
+    """Определить по внешней модели, является ли изображение рубашкой.
+
+    ``classifier`` должен вернуть ``True``, если карта показана рубашкой, иначе
+    ``False``. Внутри функции никаких эвристик на основе пикселей не
+    применяется.
+    """
+
+    return bool(classifier(image))
+
+
+def sort_by_back(
+    items: Iterable[Tuple[Sequence[Sequence[Any]], bool]],
+) -> Dict[str, List[Sequence[Sequence[Any]]]]:
+    """Разделить изображения по рубашке и лицевой стороне.
+
+    Функция не определяет ориентацию карт самостоятельно. Она принимает
+    от внешней модели признак ``is_back`` и распределяет изображения в
+    соответствующие коллекции.
+    """
+
+    groups: Dict[str, List[Sequence[Sequence[Any]]]] = {"back": [], "face": []}
+    for img, is_back_flag in items:
+        if is_back_flag:
+            groups["back"].append(img)
+        else:
+            groups["face"].append(img)
+    return groups
 
 
 def _load_model() -> tuple[nn.Module, transforms.Compose]:
