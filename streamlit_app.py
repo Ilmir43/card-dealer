@@ -6,11 +6,16 @@ import numpy as np
 import streamlit as st
 from pathlib import Path
 from typing import List
-
-from pathlib import Path
-from predict import recognize_card_array
-from card_dealer import recognizer
 import tempfile
+
+from predict import recognize_card_array
+from recognize_card import load_embeddings, find_best
+from card_dealer import recognizer
+
+import torch
+from torch import nn
+from torchvision import models, transforms
+from model import IMAGE_SIZE
 
 SUIT_ICONS = {
     "Hearts": "♥️",
@@ -24,6 +29,15 @@ RANK_SHORT = {
     "Queen": "Q",
     "Jack": "J",
 }
+
+# Кэши для эмбеддингов и модели извлечения признаков
+_EMBED_CACHE: dict[str, tuple[list[str], list[str], np.ndarray]] = {}
+_FEATURE_MODEL: tuple[torch.nn.Module, str] | None = None
+_array_transform = transforms.Compose([
+    transforms.ToPILImage(),
+    transforms.Resize(IMAGE_SIZE),
+    transforms.ToTensor(),
+])
 
 
 def label_to_icon(label: str) -> str:
@@ -39,8 +53,8 @@ def label_to_icon(label: str) -> str:
 
 
 def list_models() -> list[Path]:
-    """Вернуть доступные файлы весов (.pt) в корне проекта."""
-    return sorted(Path("./models").glob("*.pt"))
+    """Вернуть доступные файлы весов (.pt) во всём проекте."""
+    return sorted(p for p in Path(".").rglob("*.pt") if p.is_file())
 
 
 def list_project_cards() -> list[Path]:
@@ -52,8 +66,37 @@ def list_project_cards() -> list[Path]:
     return sorted(p for p in ds.iterdir() if p.suffix.lower() in exts and not p.name.startswith("_"))
 
 
-def recognize_cards_in_video(file, model_path: str = "model.pt") -> list[str]:
-    """Return labels of cards recognized in a video file."""
+def recognize_card_embeddings(image: np.ndarray, embeddings_path: str) -> dict[str, str]:
+    """Распознать карту с помощью базы эмбеддингов."""
+    global _EMBED_CACHE, _FEATURE_MODEL
+
+    if embeddings_path not in _EMBED_CACHE:
+        paths, labels, emb = load_embeddings(Path(embeddings_path))
+        _EMBED_CACHE[embeddings_path] = (paths, labels, emb)
+    paths, labels, emb_db = _EMBED_CACHE[embeddings_path]
+
+    if _FEATURE_MODEL is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = models.resnet18(pretrained=True)
+        model.fc = nn.Identity()
+        model.to(device)
+        model.eval()
+        _FEATURE_MODEL = (model, device)
+    model, device = _FEATURE_MODEL
+
+    tensor = _array_transform(image).unsqueeze(0).to(device)
+    with torch.no_grad():
+        feat = model(tensor).cpu().numpy()[0]
+
+    results = find_best(feat, emb_db, labels, paths, top_k=1)
+    label = results[0]["label"] if results else "Unknown"
+    return {"type": "face", "label": label}
+
+
+def recognize_cards_in_video(
+    file, *, model_path: str = "model.pt", embeddings_path: str | None = None, method: str = "model"
+) -> list[str]:
+    """Распознать карты на видео."""
     cards: list[str] = []
     if file is None:
         return cards
@@ -72,7 +115,10 @@ def recognize_cards_in_video(file, model_path: str = "model.pt") -> list[str]:
             success, frame = cap.read()
             if not success:
                 break
-            result = recognize_card_array(frame, model_path=model_path)
+            if method == "embeddings" and embeddings_path:
+                result = recognize_card_embeddings(frame, embeddings_path)
+            else:
+                result = recognize_card_array(frame, model_path=model_path)
             label = result.get("label", "Unknown")
             if label != "Unknown":
                 cards.append(label)
@@ -84,15 +130,25 @@ def recognize_cards_in_video(file, model_path: str = "model.pt") -> list[str]:
 def main() -> None:
     st.title("Распознавание игральных карт")
 
-    models = list_models()
-    if models:
-        model_path = st.sidebar.selectbox(
-            "Классификатор",
-            models,
-            format_func=lambda p: p.name,
-        )
+    method = st.sidebar.radio(
+        "Метод распознавания", ["model", "embeddings"],
+        format_func=lambda m: "Модель" if m == "model" else "Эмбеддинги",
+    )
+
+    model_path = "model.pt"
+    embeddings_path = "embeddings.pkl"
+    if method == "model":
+        models = list_models()
+        if models:
+            model_path = st.sidebar.selectbox(
+                "Классификатор",
+                models,
+                format_func=lambda p: p.name,
+            )
+        else:
+            model_path = st.sidebar.text_input("Файл модели", "model.pt")
     else:
-        model_path = st.sidebar.text_input("Файл модели", "model.pt")
+        embeddings_path = st.sidebar.text_input("Файл embeddings", "embeddings.pkl")
 
     project_cards = list_project_cards()
     selected_card = None
@@ -120,7 +176,10 @@ def main() -> None:
             return
 
     if img is not None:
-        result = recognize_card_array(img, model_path=str(model_path))
+        if method == "embeddings":
+            result = recognize_card_embeddings(img, embeddings_path)
+        else:
+            result = recognize_card_array(img, model_path=str(model_path))
 
         st.image(img, channels="BGR")
         label = result.get("label", "Unknown")
@@ -142,7 +201,12 @@ def main() -> None:
         "Видео с картами", type=["mp4", "avi", "mov"], key="video"
     )
     if video_file is not None:
-        labels = recognize_cards_in_video(video_file, model_path=model_path)
+        labels = recognize_cards_in_video(
+            video_file,
+            model_path=model_path,
+            embeddings_path=embeddings_path,
+            method=method,
+        )
         if labels:
             st.success(" ".join(label_to_icon(l) for l in labels))
         else:
