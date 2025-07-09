@@ -12,7 +12,6 @@ MENU_ITEMS = [
     "Настроить количество карт на игрока",
     "Начать раздачу",
     "Сортировка",
-    "Выключить устройство",
 ]
 
 SORT_OPTIONS = [
@@ -37,7 +36,7 @@ def load_cards(csv_path: Path = Path("cards.csv")) -> list[str]:
 
 def init_state() -> None:
     state = st.session_state
-    state.setdefault("screen", "off")
+    state.setdefault("screen", "main_menu")
     state.setdefault("menu_index", 0)
     state.setdefault("players", 2)
     state.setdefault("cards_per_player", 1)
@@ -76,9 +75,6 @@ def sorted_hands() -> list[list[str]]:
 
 # ----------- Screen renderers -----------
 
-def render_off() -> None:
-    st.write("Устройство выключено")
-
 
 def render_main_menu() -> None:
     st.write("### Главное меню")
@@ -115,9 +111,7 @@ def render_sorted() -> None:
 
 def render_screen() -> None:
     screen = st.session_state.screen
-    if screen == "off":
-        render_off()
-    elif screen == "main_menu":
+    if screen == "main_menu":
         render_main_menu()
     elif screen == "set_players":
         render_set_players()
@@ -133,19 +127,8 @@ def render_screen() -> None:
 
 # ----------- Button handlers -----------
 
-def handle_buttons(power: bool, up: bool, down: bool, left: bool, right: bool, ok: bool) -> None:
+def handle_buttons(up: bool, down: bool, left: bool, right: bool, ok: bool) -> None:
     state = st.session_state
-    if power:
-        if state.screen == "off":
-            state.screen = "main_menu"
-            state.menu_index = 0
-        else:
-            state.screen = "off"
-        st.experimental_rerun()
-        return
-
-    if state.screen == "off":
-        return
 
     if state.screen in {"main_menu", "sort"}:
         options = MENU_ITEMS if state.screen == "main_menu" else SORT_OPTIONS
@@ -177,8 +160,6 @@ def handle_buttons(power: bool, up: bool, down: bool, left: bool, right: bool, o
         elif idx == 3:
             state.menu_index = state.sort_mode
             state.screen = "sort"
-        elif idx == 4:
-            state.screen = "off"
     elif state.screen == "set_players" and ok:
         state.screen = "main_menu"
     elif state.screen == "set_cards" and ok:
@@ -198,22 +179,18 @@ def main() -> None:
     st.set_page_config(page_title="Card Device Emulator")
     init_state()
 
-    disabled = st.session_state.screen == "off"
-
-    power = st.button("🔘 ВКЛ/ВЫКЛ", key="btn_power")
-
     row_up = st.columns(3)
-    up = row_up[1].button("🔼 Вверх", disabled=disabled, key="btn_up")
+    up = row_up[1].button("🔼 Вверх", key="btn_up")
 
     row_mid = st.columns(3)
-    left = row_mid[0].button("◀️ Влево", disabled=disabled, key="btn_left")
-    ok = row_mid[1].button("🆗 ОК", disabled=disabled, key="btn_ok")
-    right = row_mid[2].button("▶️ Вправо", disabled=disabled, key="btn_right")
+    left = row_mid[0].button("◀️ Влево", key="btn_left")
+    ok = row_mid[1].button("🆗 ОК", key="btn_ok")
+    right = row_mid[2].button("▶️ Вправо", key="btn_right")
 
     row_down = st.columns(3)
-    down = row_down[1].button("🔽 Вниз", disabled=disabled, key="btn_down")
+    down = row_down[1].button("🔽 Вниз", key="btn_down")
 
-    handle_buttons(power, up, down, left, right, ok)
+    handle_buttons(up, down, left, right, ok)
 
     st.markdown("---")
     render_screen()
