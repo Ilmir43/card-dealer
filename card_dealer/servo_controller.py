@@ -19,8 +19,15 @@ except ModuleNotFoundError:  # pragma: no cover - handled at runtime
 class _HardwareInterface:
     """Abstract hardware interface used by :class:`ServoController`."""
 
-    def dispense(self) -> None:
-        """Move the servo to eject a single card."""
+    def dispense(self, angle: float = 90) -> None:
+        """Move the servo to eject a single card.
+
+        Parameters
+        ----------
+        angle:
+            Desired rotation angle in degrees. Implementations may ignore the
+            value if the hardware does not support variable angles.
+        """
         raise NotImplementedError
 
     def cleanup(self) -> None:
@@ -40,9 +47,10 @@ class _GPIODriver(_HardwareInterface):
         self._pwm = GPIO.PWM(pwm_pin, frequency)
         self._pwm.start(0)
 
-    def dispense(self) -> None:
-        # Simple 90 degree pulse then return
-        self._pwm.ChangeDutyCycle(7.5)
+    def dispense(self, angle: float = 90) -> None:
+        """Rotate servo to ``angle`` degrees and back."""
+        duty = 2.5 + angle / 18.0
+        self._pwm.ChangeDutyCycle(duty)
         time.sleep(0.5)
         self._pwm.ChangeDutyCycle(2.5)
         time.sleep(0.5)
@@ -61,8 +69,9 @@ class _SerialDriver(_HardwareInterface):
             raise RuntimeError("pyserial is required for serial servo control")
         self._serial = serial.Serial(port, baudrate)
 
-    def dispense(self) -> None:
-        self._serial.write(b"DISPENSE\n")
+    def dispense(self, angle: float = 90) -> None:
+        cmd = f"DISPENSE:{angle}\n".encode()
+        self._serial.write(cmd)
         self._serial.flush()
 
     def cleanup(self) -> None:
@@ -103,10 +112,16 @@ class ServoController:
         else:
             raise ValueError("Either pwm_pin or serial_port must be specified")
 
-    def dispense_card(self) -> None:
-        """Dispense a single card by activating the servo."""
+    def dispense_card(self, angle: float = 90) -> None:
+        """Dispense a single card by activating the servo.
 
-        self._driver.dispense()
+        Parameters
+        ----------
+        angle:
+            Rotation angle passed to the underlying driver.
+        """
+
+        self._driver.dispense(angle)
 
     def cleanup(self) -> None:
         """Release resources allocated by the controller."""
