@@ -153,7 +153,7 @@ def dataset_page(angle: float, servo_pin: int) -> None:
     tags = st.text_input("Теги через запятую", "")
     no_crop = st.checkbox("Не обрезать", value=False)
 
-    if st.button("Выдать карту", key="dispense_dataset"):
+    if st.button("Следующая карта", key="dispense_dataset"):
         servo = get_servo(servo_pin)
         if servo:
             servo.dispense_card(angle=angle)
@@ -257,7 +257,7 @@ def recognize_page(angle: float, servo_pin: int) -> None:
             recognizer.record_incorrect(Path(source_path), label)
             st.info("Отмечено для переобучения")
 
-    if st.button("Выдать карту", key="dispense_rec"):
+    if st.button("Следующая карта", key="dispense_rec"):
         servo = get_servo(servo_pin)
         if servo:
             servo.dispense_card(angle=angle)
