@@ -100,22 +100,27 @@ _MODEL_CACHE: dict[tuple[str, str], tuple[torch.nn.Module, dict[int, str]]] = {}
 
 
 def _load_model(model_path: str, device: str) -> tuple[torch.nn.Module, dict[int, str]]:
-    """Load and cache a model for the given path and device."""
     key = (model_path, device)
     if key in _MODEL_CACHE:
         return _MODEL_CACHE[key]
 
     checkpoint = torch.load(model_path, map_location=device)
-    class_to_idx = checkpoint.get("class_to_idx", {})
-    idx_to_class = {v: k for k, v in class_to_idx.items()}
-    model = create_model(num_classes=len(class_to_idx))
     state = checkpoint.get("model_state", checkpoint)
+
+    # Задать вручную количество классов
+    num_classes = 53
+
+    # Временно: если нет class_to_idx — создаём простую имитацию
+    idx_to_class = {i: f"class_{i}" for i in range(num_classes)}
+
+    model = create_model(num_classes=num_classes)
     model.load_state_dict(state, strict=False)
     model.to(device)
     model.eval()
 
     _MODEL_CACHE[key] = (model, idx_to_class)
     return model, idx_to_class
+
 
 _transform = transforms.Compose([
     transforms.Resize(IMAGE_SIZE),

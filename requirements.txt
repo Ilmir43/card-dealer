@@ -7,6 +7,8 @@ opencv-python
 numpy
 pyserial
 torch
+pandas
+tensorflow
 torchvision
 # Пакеты для Raspberry Pi устанавливаются только на Linux
 picamera; platform_system == "Linux"

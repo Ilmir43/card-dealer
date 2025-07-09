@@ -4,6 +4,8 @@ from __future__ import annotations
 import cv2
 import numpy as np
 import streamlit as st
+from pathlib import Path
+from typing import List
 
 from pathlib import Path
 from predict import recognize_card_array
@@ -38,7 +40,7 @@ def label_to_icon(label: str) -> str:
 
 def list_models() -> list[Path]:
     """Вернуть доступные файлы весов (.pt) в корне проекта."""
-    return sorted(Path(".").glob("*.pt"))
+    return sorted(Path("./models").glob("*.pt"))
 
 
 def list_project_cards() -> list[Path]:
