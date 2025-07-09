@@ -7,10 +7,38 @@ from pathlib import Path
 import torch
 from torch import nn
 from torchvision import transforms, models
+import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
 from model import IMAGE_SIZE
+
+
+def build_embeddings_map(data_dir: Path) -> dict[str, list[np.ndarray]]:
+    """Сформировать словарь эмбеддингов по меткам класса."""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    transform = transforms.Compose([
+        transforms.Resize(IMAGE_SIZE),
+        transforms.ToTensor(),
+    ])
+
+    model = models.resnet18(pretrained=True)
+    model.fc = nn.Identity()
+    model.to(device)
+    model.eval()
+
+    result: dict[str, list[np.ndarray]] = {}
+    images = [p for p in data_dir.rglob("*.jpg") if not p.name.endswith("_crop.jpg")]
+    for img_path in tqdm(images, desc="images"):
+        crop = img_path.with_name(img_path.stem + "_crop" + img_path.suffix)
+        use_path = crop if crop.exists() else img_path
+        img = Image.open(use_path).convert("RGB")
+        tensor = transform(img).unsqueeze(0).to(device)
+        with torch.no_grad():
+            vec = model(tensor).cpu().numpy()[0]
+        label = img_path.parent.name
+        result.setdefault(label, []).append(vec)
+    return result
 
 
 def _load_meta(img_path: Path) -> dict:

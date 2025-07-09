@@ -30,6 +30,10 @@ DATASET_DIR = Path(__file__).resolve().parent.parent / "dataset"
 # same files from disk.
 _TEMPLATES: Dict[str, List["np.ndarray"]] | None = None
 
+# минимальный коэффициент совпадения для уверенного распознавания
+MIN_MATCH_SCORE = 0.2
+NO_CARD_LABEL = "Нет карты"
+
 
 def _load_templates() -> Dict[str, List["np.ndarray"]]:
     """Load image templates from :data:`DATASET_DIR`.
@@ -116,6 +120,8 @@ def recognize_card(image_path: Path) -> str:
                 best_score = max_val
                 best_label = label
 
+    if best_score < MIN_MATCH_SCORE:
+        return NO_CARD_LABEL
     return best_label
 
 
@@ -143,6 +149,8 @@ def recognize_card_array(image: "np.ndarray") -> str:
                 best_score = max_val
                 best_label = label
 
+    if best_score < MIN_MATCH_SCORE:
+        return NO_CARD_LABEL
     return best_label
 
 
