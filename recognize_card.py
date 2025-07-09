@@ -13,13 +13,21 @@ from torchvision import transforms, models
 from model import IMAGE_SIZE
 
 
-def load_embeddings(path: Path) -> tuple[List[str], List[str], np.ndarray]:
-    with path.open("rb") as f:
-        data = pickle.load(f)
-    paths = [row["path"] for row in data]
-    labels = [row["label"] for row in data]
-    emb = np.stack([row["embedding"] for row in data])
-    return paths, labels, emb
+def load_embeddings(paths: List[Path]) -> tuple[List[str], List[str], np.ndarray, List[dict]]:
+    all_paths: List[str] = []
+    all_labels: List[str] = []
+    all_emb: List[np.ndarray] = []
+    meta: List[dict] = []
+    for p in paths:
+        with p.open("rb") as f:
+            data = pickle.load(f)
+        for row in data:
+            all_paths.append(row.get("path", ""))
+            all_labels.append(row.get("label", ""))
+            all_emb.append(row["embedding"])
+            meta.append(row)
+    emb = np.stack(all_emb)
+    return all_paths, all_labels, emb, meta
 
 
 def extract_feature(image_path: Path, model: torch.nn.Module, transform) -> np.ndarray:
@@ -36,19 +44,32 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return a_norm @ b_norm
 
 
-def find_best(embedding: np.ndarray, db_embeddings: np.ndarray, labels: List[str], paths: List[str], top_k: int = 3) -> List[dict]:
+def find_best(
+    embedding: np.ndarray,
+    db_embeddings: np.ndarray,
+    labels: List[str],
+    paths: List[str],
+    meta: List[dict],
+    top_k: int = 3,
+) -> List[dict]:
     sims = cosine_similarity(db_embeddings, embedding)
     idx = np.argsort(-sims)[:top_k]
-    return [
-        {"label": labels[i], "path": paths[i], "score": float(sims[i])}
-        for i in idx
-    ]
+    results = []
+    for i in idx:
+        item = {
+            "label": labels[i],
+            "path": paths[i],
+            "score": float(sims[i]),
+        }
+        item.update({k: meta[i].get(k) for k in ("game", "expansion")})
+        results.append(item)
+    return results
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Распознавание карты по эмбеддингам")
     parser.add_argument("image", help="Путь к изображению карты")
-    parser.add_argument("--embeddings", default="embeddings.pkl", help="Файл с базой эмбеддингов")
+    parser.add_argument("--embeddings", nargs="+", default=["embeddings.pkl"], help="Файлы с базой эмбеддингов")
     parser.add_argument("--top-k", type=int, default=3, help="Количество лучших совпадений")
     args = parser.parse_args()
 
@@ -64,17 +85,18 @@ def main() -> None:
         transforms.ToTensor(),
     ])
 
-    emb_path = Path(args.embeddings)
-    logging.info("Загружаю эмбеддинги из %s", emb_path)
-    paths, labels, emb_db = load_embeddings(emb_path)
+    emb_paths = [Path(p) for p in args.embeddings]
+    logging.info("Загружаю эмбеддинги: %s", ", ".join(str(p) for p in emb_paths))
+    paths, labels, emb_db, meta = load_embeddings(emb_paths)
 
     query_path = Path(args.image)
     logging.info("Извлекаю признаки из %s", query_path)
     query_emb = extract_feature(query_path, model, transform)
 
-    results = find_best(query_emb, emb_db, labels, paths, top_k=args.top_k)
+    results = find_best(query_emb, emb_db, labels, paths, meta, top_k=args.top_k)
     for i, r in enumerate(results, 1):
-        print(f"{i}. {r['label']} - {r['score']:.4f} ({r['path']})")
+        game = r.get("game", "?")
+        print(f"{i}. {r['label']} [{game}] - {r['score']:.4f} ({r['path']})")
 
 
 if __name__ == "__main__":  # pragma: no cover - script usage
