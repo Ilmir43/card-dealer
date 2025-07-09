@@ -1,271 +1,217 @@
-"""Демо Streamlit для классификации и сбора изображений карт."""
-from __future__ import annotations
-
-import cv2
-import numpy as np
-import streamlit as st
+import random
 from pathlib import Path
-from typing import List
-import tempfile
-import datetime
-import json
 
-from predict import recognize_card_array
-from recognize_card import load_embeddings, find_best
-from card_dealer import recognizer
-from card_dealer import camera as cam
+import pandas as pd
+import streamlit as st
+
 from card_dealer.cards import CardClasses
 
-import torch
-from torch import nn
-from torchvision import models, transforms
-from model import IMAGE_SIZE
+
+MENU_ITEMS = [
+    "Настроить количество игроков",
+    "Настроить количество карт на игрока",
+    "Начать раздачу",
+    "Сортировка",
+    "Выключить устройство",
+]
+
+SORT_OPTIONS = [
+    "Без сортировки",
+    "По лицу/рубашке",
+    "По игре/дополнению",
+]
 
 
-# Кэши для эмбеддингов и модели извлечения признаков
-_EMBED_CACHE: dict[str, tuple[list[str], list[str], np.ndarray]] = {}
-_FEATURE_MODEL: tuple[torch.nn.Module, str] | None = None
-_array_transform = transforms.Compose([
-    transforms.ToPILImage(),
-    transforms.Resize(IMAGE_SIZE),
-    transforms.ToTensor(),
-])
-
-
-
-
-def list_models() -> list[Path]:
-    """Вернуть доступные файлы весов (.pt) во всём проекте."""
-    return sorted(p for p in Path(".").rglob("*.pt") if p.is_file())
-
-
-def list_project_cards() -> list[Path]:
-    """Вернуть изображения карт из каталога проекта."""
-    ds = recognizer.DATASET_DIR
-    if not ds.exists():
-        return []
-    exts = {".png", ".jpg", ".jpeg"}
-    return sorted(p for p in ds.iterdir() if p.suffix.lower() in exts and not p.name.startswith("_"))
-
-
-def recognize_card_embeddings(image: np.ndarray, embeddings_path: str) -> dict[str, str]:
-    """Распознать карту с помощью базы эмбеддингов."""
-    global _EMBED_CACHE, _FEATURE_MODEL
-
-    if embeddings_path not in _EMBED_CACHE:
-        paths, labels, emb = load_embeddings(Path(embeddings_path))
-        _EMBED_CACHE[embeddings_path] = (paths, labels, emb)
-    paths, labels, emb_db = _EMBED_CACHE[embeddings_path]
-
-    if _FEATURE_MODEL is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model = models.resnet18(pretrained=True)
-        model.fc = nn.Identity()
-        model.to(device)
-        model.eval()
-        _FEATURE_MODEL = (model, device)
-    model, device = _FEATURE_MODEL
-
-    tensor = _array_transform(image).unsqueeze(0).to(device)
-    with torch.no_grad():
-        feat = model(tensor).cpu().numpy()[0]
-
-    results = find_best(feat, emb_db, labels, paths, top_k=1)
-    label = results[0]["label"] if results else "Unknown"
-    return {"type": "face", "label": label}
-
-
-def recognize_cards_in_video(
-    file, *, model_path: str = "model.pt", embeddings_path: str | None = None, method: str = "model"
-) -> list[str]:
-    """Распознать карты на видео."""
-    cards: list[str] = []
-    if file is None:
-        return cards
-
-    # Save uploaded file to a temporary location for cv2.VideoCapture
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
-        tmp.write(file.read())
-        tmp_path = tmp.name
-
-    cap = cv2.VideoCapture(tmp_path)
-    if not cap.isOpened():
-        return cards
-
-    try:
-        while True:
-            success, frame = cap.read()
-            if not success:
-                break
-            if method == "embeddings" and embeddings_path:
-                result = recognize_card_embeddings(frame, embeddings_path)
-            else:
-                result = recognize_card_array(frame, model_path=model_path)
-            label = result.get("label", "Unknown")
-            if label != "Unknown":
-                cards.append(label)
-    finally:
-        cap.release()
-
-    return cards
-
-def dataset_page() -> None:
-    """Page for capturing images into the dataset."""
-
-    st.header("Сбор изображений")
-    game = st.text_input("Игра")
-    card_name = st.text_input("Название карты")
-    card_type = st.selectbox("Тип", ["face", "back"])
-    expansion = st.text_input("Дополнение", "")
-    tags = st.text_input("Теги через запятую", "")
-    no_crop = st.checkbox("Не обрезать", value=False)
-
-
-
-    img_data = st.camera_input("Сделать снимок")
-    if img_data is not None and game and card_name:
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_dir = Path("datasets") / game / card_name
-        img_path = base_dir / f"{timestamp}.jpg"
-        base_dir.mkdir(parents=True, exist_ok=True)
-        with open(img_path, "wb") as f:
-            f.write(img_data.getvalue())
-
-        meta = {
-            "game": game,
-            "card_name": card_name,
-            "type": card_type,
-            "expansion": expansion or None,
-            "tags": [t.strip() for t in tags.split(",") if t.strip()],
-        }
-        with open(img_path.with_suffix(".json"), "w", encoding="utf8") as f:
-            json.dump(meta, f, ensure_ascii=False, indent=2)
-
-        if not no_crop:
-            arr = np.frombuffer(img_data.getvalue(), dtype=np.uint8)
-            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-            card = cam.find_card(img)
-            if card is not None:
-                crop_path = base_dir / f"{timestamp}_crop.jpg"
-                cv2.imwrite(str(crop_path), card)
-
-        st.success(f"Сохранено {img_path}")
-
-
-def recognize_page() -> None:
-    st.header("Распознавание игральных карт")
-
-    method = st.sidebar.radio(
-        "Метод распознавания", ["model", "embeddings"],
-        format_func=lambda m: "Модель" if m == "model" else "Эмбеддинги",
-    )
-
-    model_path = "model.pt"
-    embeddings_path = "embeddings.pkl"
-    if method == "model":
-        models = list_models()
-        if models:
-            model_path = st.sidebar.selectbox(
-                "Классификатор",
-                models,
-                format_func=lambda p: p.name,
-            )
+def load_cards(csv_path: Path = Path("cards.csv")) -> list[str]:
+    """Load card labels from ``cards.csv`` or use default deck."""
+    if csv_path.exists():
+        df = pd.read_csv(csv_path)
+        if "labels" in df.columns:
+            labels = df["labels"].dropna().astype(str).tolist()
         else:
-            model_path = st.sidebar.text_input("Файл модели", "model.pt")
-    else:
-        embeddings_path = st.sidebar.text_input("Файл embeddings", "embeddings.pkl")
-
-    project_cards = list_project_cards()
-    selected_card = None
-    if project_cards:
-        selected_card = st.sidebar.selectbox(
-            "Карта из проекта",
-            [None] + project_cards,
-            format_func=lambda p: "-" if p is None else p.name,
-        )
-
-    uploaded = st.file_uploader("Изображение карты", type=["png", "jpg", "jpeg"])
-    camera_data = st.camera_input("Сделать снимок")
-    img = None
-    source_path = None
-    if camera_data is not None:
-        arr = np.frombuffer(camera_data.getvalue(), dtype=np.uint8)
-        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-        if img is None:
-            st.error("Не удалось прочитать изображение")
-            return
-    elif uploaded is not None:
-        file_bytes = np.asarray(bytearray(uploaded.read()), dtype=np.uint8)
-        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-        if img is None:
-            st.error("Не удалось прочитать изображение")
-            return
-    elif selected_card is not None:
-        source_path = selected_card
-        img = cv2.imread(str(selected_card))
-        if img is None:
-            st.error("Не удалось прочитать изображение")
-            return
-
-    if img is not None:
-        if method == "embeddings":
-            result = recognize_card_embeddings(img, embeddings_path)
-        else:
-            result = recognize_card_array(img, model_path=str(model_path))
-
-        st.image(img, channels="BGR")
-        label = result.get("label", "Unknown")
-        if label != "Unknown":
-            st.success(f"Карта: {CardClasses.label_to_icon(label)}")
-        else:
-            st.info("Карта не распознана")
-
-        if st.button("Отметить как неправильное"):
-            if source_path is None:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-                    cv2.imwrite(tmp.name, img)
-                    source_path = Path(tmp.name)
-            recognizer.record_incorrect(Path(source_path), label)
-            st.info("Отмечено для переобучения")
-
-
-
-    st.subheader("Видео")
-    video_file = st.file_uploader(
-        "Видео с картами", type=["mp4", "avi", "mov"], key="video"
-    )
-    if video_file is not None:
-        labels = recognize_cards_in_video(
-            video_file,
-            model_path=model_path,
-            embeddings_path=embeddings_path,
-            method=method,
-        )
+            labels = df.iloc[:, 0].dropna().astype(str).tolist()
         if labels:
-            st.success(" ".join(CardClasses.label_to_icon(l) for l in labels))
+            return labels
+    return list(CardClasses.LABELS)
+
+
+def init_state() -> None:
+    state = st.session_state
+    state.setdefault("screen", "off")
+    state.setdefault("menu_index", 0)
+    state.setdefault("players", 2)
+    state.setdefault("cards_per_player", 1)
+    state.setdefault("distributed_cards", [])
+    state.setdefault("sort_mode", 0)
+    state.setdefault("deck", load_cards())
+
+
+def deal_cards() -> None:
+    """Distribute cards randomly between players."""
+    state = st.session_state
+    deck = state.deck.copy()
+    random.shuffle(deck)
+    total = state.players * state.cards_per_player
+    if total > len(deck):
+        total = len(deck)
+    hands = []
+    idx = 0
+    for _ in range(state.players):
+        hand = deck[idx : idx + state.cards_per_player]
+        hands.append(hand)
+        idx += state.cards_per_player
+    state.distributed_cards = hands
+    state.screen = "deal"
+
+
+def sorted_hands() -> list[list[str]]:
+    hands = st.session_state.distributed_cards
+    mode = st.session_state.sort_mode
+    if mode == 0:
+        return hands
+    if mode in (1, 2):
+        return [sorted(h) for h in hands]
+    return hands
+
+
+# ----------- Screen renderers -----------
+
+def render_off() -> None:
+    st.write("Устройство выключено")
+
+
+def render_main_menu() -> None:
+    st.write("### Главное меню")
+    for idx, item in enumerate(MENU_ITEMS):
+        prefix = "👉 " if idx == st.session_state.menu_index else "  "
+        st.write(f"{prefix}{item}")
+
+
+def render_set_players() -> None:
+    st.write(f"Количество игроков: {st.session_state.players}")
+
+
+def render_set_cards() -> None:
+    st.write(f"Карт на игрока: {st.session_state.cards_per_player}")
+
+
+def render_deal() -> None:
+    for i, hand in enumerate(st.session_state.distributed_cards, 1):
+        st.write(f"Игрок {i}: {', '.join(hand)}")
+
+
+def render_sort_menu() -> None:
+    st.write("### Режим сортировки")
+    for idx, item in enumerate(SORT_OPTIONS):
+        prefix = "👉 " if idx == st.session_state.menu_index else "  "
+        st.write(f"{prefix}{item}")
+
+
+def render_sorted() -> None:
+    st.write(f"Сортировка: {SORT_OPTIONS[st.session_state.sort_mode]}")
+    for i, hand in enumerate(sorted_hands(), 1):
+        st.write(f"Игрок {i}: {', '.join(hand)}")
+
+
+def render_screen() -> None:
+    screen = st.session_state.screen
+    if screen == "off":
+        render_off()
+    elif screen == "main_menu":
+        render_main_menu()
+    elif screen == "set_players":
+        render_set_players()
+    elif screen == "set_cards":
+        render_set_cards()
+    elif screen == "deal":
+        render_deal()
+    elif screen == "sort":
+        render_sort_menu()
+    elif screen == "sorted":
+        render_sorted()
+
+
+# ----------- Button handlers -----------
+
+def handle_buttons(power: bool, up: bool, down: bool, left: bool, right: bool, ok: bool) -> None:
+    state = st.session_state
+    if power:
+        if state.screen == "off":
+            state.screen = "main_menu"
+            state.menu_index = 0
         else:
-            st.info("Карты не распознаны")
+            state.screen = "off"
+        return
 
-    if st.checkbox("Распознавать с камеры"):
-        placeholder = st.empty()
-        label_ph = st.empty()
-        for frame in cam.stream_frames():
-            if method == "embeddings":
-                res = recognize_card_embeddings(frame, embeddings_path)
-            else:
-                res = recognize_card_array(frame, model_path=str(model_path))
-            placeholder.image(frame, channels="BGR")
-            label_ph.write(CardClasses.label_to_icon(res.get("label", "Unknown")))
+    if state.screen == "off":
+        return
 
+    if state.screen in {"main_menu", "sort"}:
+        options = MENU_ITEMS if state.screen == "main_menu" else SORT_OPTIONS
+        if up:
+            state.menu_index = (state.menu_index - 1) % len(options)
+        if down:
+            state.menu_index = (state.menu_index + 1) % len(options)
+
+    if state.screen == "set_players":
+        if left and state.players > 1:
+            state.players -= 1
+        if right:
+            state.players += 1
+    elif state.screen == "set_cards":
+        if left and state.cards_per_player > 1:
+            state.cards_per_player -= 1
+        if right:
+            state.cards_per_player += 1
+
+    if state.screen == "main_menu" and ok:
+        idx = state.menu_index
+        state.menu_index = 0
+        if idx == 0:
+            state.screen = "set_players"
+        elif idx == 1:
+            state.screen = "set_cards"
+        elif idx == 2:
+            deal_cards()
+        elif idx == 3:
+            state.menu_index = state.sort_mode
+            state.screen = "sort"
+        elif idx == 4:
+            state.screen = "off"
+    elif state.screen == "set_players" and ok:
+        state.screen = "main_menu"
+    elif state.screen == "set_cards" and ok:
+        state.screen = "main_menu"
+    elif state.screen == "deal" and ok:
+        state.screen = "main_menu"
+    elif state.screen == "sort" and ok:
+        state.sort_mode = state.menu_index
+        state.screen = "sorted"
+    elif state.screen == "sorted" and ok:
+        state.screen = "main_menu"
+
+
+# ----------- Main app -----------
 
 def main() -> None:
-    st.title("Card Dealer")
-    page = st.sidebar.selectbox("Режим", ["Распознавание", "Сбор датасета"])
-    if page == "Сбор датасета":
-        dataset_page()
-    else:
-        recognize_page()
+    st.set_page_config(page_title="Card Device Emulator")
+    init_state()
+
+    disabled = st.session_state.screen == "off"
+
+    col_buttons = st.columns(6)
+    power = col_buttons[0].button("🔘 ВКЛ/ВЫКЛ")
+    up = col_buttons[1].button("🔼 Вверх", disabled=disabled)
+    down = col_buttons[2].button("🔽 Вниз", disabled=disabled)
+    left = col_buttons[3].button("◀️ Влево", disabled=disabled)
+    right = col_buttons[4].button("▶️ Вправо", disabled=disabled)
+    ok = col_buttons[5].button("🆗 ОК", disabled=disabled)
+
+    handle_buttons(power, up, down, left, right, ok)
+
+    st.markdown("---")
+    render_screen()
 
 
-if __name__ == "__main__":  # pragma: no cover - скрипт
+if __name__ == "__main__":
     main()
