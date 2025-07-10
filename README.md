@@ -156,6 +156,15 @@ python convert_dataset_to_yolo.py cards.csv datasets/cards
 ```
 
 
+
+## Конвертация набора UNO
+
+Для изображений карт UNO предназначен скрипт `convert_uno_dataset.py`. Он копирует файлы в каталог `datasets/<игра>` и формирует `cards.csv`.
+
+```bash
+python convert_uno_dataset.py /path/to/uno --game uno
+```
+
 ## Демонстрация
 
 Файл `streamlit_app.py` реализует цифровой эмулятор физического устройства,
