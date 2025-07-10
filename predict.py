@@ -54,11 +54,14 @@ def _load_model(model_path: str, device: str) -> tuple[torch.nn.Module, dict[int
     checkpoint = torch.load(model_path, map_location=device)
     state = checkpoint.get("model_state", checkpoint)
 
-    # Задать вручную количество классов
-    num_classes = 53
+    # Количество классов берём из списка CardClasses
+    num_classes = len(_CARD_NAMES)
 
-    # Временно: если нет class_to_idx — создаём простую имитацию
-    idx_to_class = {i: f"class_{i}" for i in range(num_classes)}
+    class_to_idx = checkpoint.get("class_to_idx")
+    if class_to_idx is not None:
+        idx_to_class = {v: k for k, v in class_to_idx.items()}
+    else:
+        idx_to_class = {i: f"class_{i}" for i in range(num_classes)}
 
     model = create_model(num_classes=num_classes)
     model.load_state_dict(state, strict=False)
@@ -82,7 +85,11 @@ _array_transform = transforms.Compose([
 ])
 
 
-def recognize_card(image_path: str | Path, model_path: str = "model.pt", device: Optional[str] = None) -> dict[str, str]:
+def recognize_card(
+    image_path: str | Path,
+    model_path: str = "models/classifier.pt",
+    device: Optional[str] = None,
+) -> dict[str, str]:
     """Predict the card label and type for a given image."""
     image_path = Path(image_path)
     if device is None:
@@ -100,7 +107,7 @@ def recognize_card(image_path: str | Path, model_path: str = "model.pt", device:
 
 
 def recognize_card_array(
-    image: "np.ndarray", model_path: str = "model.pt", device: Optional[str] = None
+    image: "np.ndarray", model_path: str = "models/classifier.pt", device: Optional[str] = None
 ) -> dict[str, str]:
     """Predict the card label for an image array."""
 
@@ -122,7 +129,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Predict card from image")
     parser.add_argument("image", help="Path to image file")
-    parser.add_argument("--model", default="model.pt", dest="model")
+    parser.add_argument("--model", default="models/classifier.pt", dest="model")
     args = parser.parse_args()
     result = recognize_card(args.image, args.model)
     print(result)

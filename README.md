@@ -124,6 +124,15 @@ python recognize_card.py path/to/card.jpg --embeddings embeddings.pkl
 
 Скрипт выводит несколько наиболее похожих вариантов с косинусной схожестью.
 
+## Распознавание по обученной модели
+
+Если у вас есть веса, полученные с помощью `train.py`, карту можно определить
+непосредственно классификатором:
+
+```bash
+python predict.py path/to/card.jpg --model models/classifier.pt
+```
+
 
 ## Конвертация форматов моделей
 
