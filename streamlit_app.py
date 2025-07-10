@@ -10,6 +10,8 @@ MENU_ITEMS = [
     "Настроить количество карт на игрока",
     "Начать раздачу",
     "Сортировка",
+    "Подсчёт карт",
+    "Поиск отсутствующих карт",
 ]
 
 SORT_OPTIONS = [
@@ -54,6 +56,8 @@ def init_state() -> None:
     state.setdefault("distributed_cards", [])
     state.setdefault("sort_mode", 0)
     state.setdefault("deck", load_cards())
+    state.setdefault("exclude_select", [])
+    state.setdefault("excluded_cards", [])
 
 
 def deal_cards() -> None:
@@ -104,6 +108,17 @@ def render_set_cards() -> None:
 def render_deck_config() -> None:
     """Overlay for arranging the deck order with card icons."""
     with st.expander("Порядок колоды", expanded=False):
+        cols = st.columns(2)
+        if cols[0].button("Рандом", key="deck_shuffle"):
+            import random
+            random.shuffle(st.session_state.deck)
+        if cols[1].button("Все карты", key="deck_all"):
+            current = set(st.session_state.deck)
+            for lbl in CardClasses.LABELS:
+                if lbl not in current:
+                    st.session_state.deck.append(lbl)
+                    current.add(lbl)
+
         deck = st.multiselect(
             "Выберите карты по порядку",
             CardClasses.LABELS,
@@ -112,7 +127,8 @@ def render_deck_config() -> None:
             key="deck_order",
         )
         if deck:
-            st.session_state.deck = list(deck)
+            from card_dealer.deck import deduplicate
+            st.session_state.deck = deduplicate(deck)
             icons = [CardClasses.label_to_icon(c) for c in deck]
             st.write("Колода:", " ".join(icons))
 
@@ -129,13 +145,45 @@ def render_sort_menu() -> None:
     for idx, item in enumerate(SORT_OPTIONS):
         prefix = "👉 " if idx == st.session_state.menu_index else "  "
         st.write(f"{prefix}{item}")
+    st.multiselect(
+        "Исключить карты",
+        CardClasses.LABELS,
+        key="exclude_select",
+        format_func=CardClasses.label_to_icon,
+    )
 
 
 def render_sorted() -> None:
     st.write(f"Сортировка: {SORT_OPTIONS[st.session_state.sort_mode]}")
-    for i, hand in enumerate(sorted_hands(), 1):
-        icons = [CardClasses.label_to_icon(c) for c in hand]
-        st.write(f"Игрок {i}: {' '.join(icons)}")
+    if st.session_state.excluded_cards:
+        icons = [CardClasses.label_to_icon(c) for c in st.session_state.excluded_cards]
+        st.write("Исключённые:", " ".join(icons))
+    if st.session_state.distributed_cards:
+        for i, hand in enumerate(sorted_hands(), 1):
+            icons = [CardClasses.label_to_icon(c) for c in hand]
+            st.write(f"Игрок {i}: {' '.join(icons)}")
+    else:
+        icons = [CardClasses.label_to_icon(c) for c in st.session_state.deck]
+        st.write("Оставшиеся:", " ".join(icons))
+
+
+def render_count() -> None:
+    from card_dealer.deck import count_cards
+
+    st.write("### Подсчёт карт")
+    st.write(f"В колоде {count_cards(st.session_state.deck)} карт")
+
+
+def render_missing() -> None:
+    from card_dealer.deck import find_missing_cards
+
+    st.write("### Отсутствующие карты")
+    missing = find_missing_cards(st.session_state.deck)
+    if not missing:
+        st.write("Все карты на месте")
+    else:
+        icons = [CardClasses.label_to_icon(c) for c in missing]
+        st.write("Не хватает:", " ".join(icons))
 
 
 def render_screen() -> None:
@@ -152,6 +200,10 @@ def render_screen() -> None:
         render_sort_menu()
     elif screen == "sorted":
         render_sorted()
+    elif screen == "count":
+        render_count()
+    elif screen == "missing":
+        render_missing()
 
 
 # ----------- Button handlers -----------
@@ -189,6 +241,10 @@ def handle_buttons(up: bool, down: bool, left: bool, right: bool, ok: bool) -> N
         elif idx == 3:
             state.menu_index = state.sort_mode
             state.screen = "sort"
+        elif idx == 4:
+            state.screen = "count"
+        elif idx == 5:
+            state.screen = "missing"
     elif state.screen == "set_players" and ok:
         state.screen = "main_menu"
     elif state.screen == "set_cards" and ok:
@@ -197,8 +253,15 @@ def handle_buttons(up: bool, down: bool, left: bool, right: bool, ok: bool) -> N
         state.screen = "main_menu"
     elif state.screen == "sort" and ok:
         state.sort_mode = state.menu_index
+        from card_dealer.deck import exclude_cards
+        excluded, remaining = exclude_cards(state.deck, state.exclude_select)
+        state.excluded_cards = excluded
+        state.deck = remaining
+        state.exclude_select = []
         state.screen = "sorted"
     elif state.screen == "sorted" and ok:
+        state.screen = "main_menu"
+    elif state.screen in {"count", "missing"} and ok:
         state.screen = "main_menu"
 
 
