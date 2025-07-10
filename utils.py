@@ -18,9 +18,32 @@ def save_checkpoint(model: torch.nn.Module, class_to_idx: dict[str, int], out_pa
 
 
 def load_checkpoint(model_path: Path, device: torch.device | str = "cpu") -> tuple[torch.nn.Module, dict[str, int]]:
+    """Загрузить модель вместе со словарём меток.
+
+    Функция автоматически определяет тип классификационной головы в сохранённых
+    весах. Это позволяет использовать как расширенную, так и упрощённую
+    конфигурацию без изменения кода.
+    """
+
     checkpoint = torch.load(model_path, map_location=device)
+    state = checkpoint.get("model_state", checkpoint)
     class_to_idx = checkpoint.get("class_to_idx", {})
-    return checkpoint, class_to_idx
+
+    state_keys = set(state.keys())
+    simple_head = "fc.weight" in state_keys and not any(k.startswith("fc.0") for k in state_keys)
+
+    if class_to_idx:
+        num_classes = len(class_to_idx)
+    else:
+        # fall back to weight shape if mapping is absent
+        fc_weight = state.get("fc.weight") or state.get("fc.3.weight")
+        num_classes = fc_weight.shape[0] if fc_weight is not None else 0
+
+    model = create_model(num_classes or 1, simple_head=simple_head)
+    model.load_state_dict(state, strict=False)
+    model.to(device)
+    model.eval()
+    return model, class_to_idx
 
 
 def add_new_card(
