@@ -1,6 +1,5 @@
 from pathlib import Path
-
-import pandas as pd
+import json
 import streamlit as st
 
 from card_dealer.cards import CardClasses
@@ -29,18 +28,20 @@ def _normalize_label(label: str) -> str | None:
     return None
 
 
-def load_cards(csv_path: Path = Path("cards.csv")) -> list[str]:
-    """Загрузить список карт из ``cards.csv`` или вернуть колоду по умолчанию."""
-    if csv_path.exists():
-        df = pd.read_csv(csv_path)
-        if "labels" in df.columns:
-            labels = df["labels"].dropna().astype(str).tolist()
-        else:
-            labels = df.iloc[:, 0].dropna().astype(str).tolist()
-        normalized = [_normalize_label(l) for l in labels]
-        labels = [l for l in normalized if l]
-        if labels:
-            return labels
+def load_cards(json_path: Path = Path("model.json")) -> list[str]:
+    """Загрузить список карт из ``model.json`` или вернуть колоду по умолчанию."""
+    if json_path.exists():
+        with json_path.open("r") as f:
+            mapping = json.load(f)
+        if isinstance(mapping, dict):
+            items = sorted(mapping.items(), key=lambda x: x[1])
+            labels = []
+            for name, _ in items:
+                norm = _normalize_label(str(name))
+                if norm:
+                    labels.append(norm)
+            if labels:
+                return labels
     return list(CardClasses.LABELS)
 
 
