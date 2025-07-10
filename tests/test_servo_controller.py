@@ -1,4 +1,5 @@
 from card_sorter.devices.servo_controller import ServoController, _HardwareInterface
+from card_sorter.config import ServoSettings
 
 class DummyDriver(_HardwareInterface):
     def __init__(self):
@@ -14,7 +15,7 @@ class DummyDriver(_HardwareInterface):
 
 def test_servo_controller_uses_driver():
     driver = DummyDriver()
-    controller = ServoController(driver=driver)
+    controller = ServoController(settings=ServoSettings(), driver=driver)
     controller.dispense_card(angle=45)
     controller.cleanup()
     assert driver.dispense_args == [45]

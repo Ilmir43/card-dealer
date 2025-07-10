@@ -114,7 +114,8 @@ def test_capture_image_with_settings(monkeypatch, tmp_path):
     monkeypatch.setattr(camera, "cv2", dummy_cv2)
 
     out_file = tmp_path / "out.png"
-    camera.capture_image(out_file, camera_settings={"brightness": 0.5})
+    settings = camera.CameraSettings(brightness=0.5)
+    camera.capture_image(out_file, settings=settings)
 
     prop_value = calls["cap"].props.get(dummy_cv2.CAP_PROP_BRIGHTNESS)
     assert prop_value == 0.5

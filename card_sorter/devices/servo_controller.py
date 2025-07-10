@@ -78,26 +78,24 @@ class _SerialDriver(_HardwareInterface):
         self._serial.close()
 
 
+from card_sorter.config import ServoSettings
+
+
 class ServoController:
     """Control a servo motor used to dispense playing cards."""
 
     def __init__(
         self,
-        pwm_pin: Optional[int] = None,
+        settings: ServoSettings,
         *,
-        serial_port: Optional[str] = None,
         driver: Optional[_HardwareInterface] = None,
     ) -> None:
         """Create a new controller for the servo.
 
         Parameters
         ----------
-        pwm_pin:
-            GPIO pin number for PWM control.  Provide ``serial_port`` instead to
-            control the servo via a serial connection.
-        serial_port:
-            Name of the serial port to use (e.g. ``"/dev/ttyUSB0"``).  Ignored if
-            ``pwm_pin`` is supplied.
+        settings:
+            Dataclass with connection parameters for the servo.
         driver:
             Optional custom hardware driver implementing the
             :class:`_HardwareInterface` protocol.  Primarily used for testing.
@@ -105,10 +103,10 @@ class ServoController:
 
         if driver is not None:
             self._driver = driver
-        elif serial_port is not None:
-            self._driver = _SerialDriver(serial_port)
-        elif pwm_pin is not None:
-            self._driver = _GPIODriver(pwm_pin)
+        elif settings.serial_port is not None:
+            self._driver = _SerialDriver(settings.serial_port)
+        elif settings.pwm_pin is not None:
+            self._driver = _GPIODriver(settings.pwm_pin)
         else:
             raise ValueError("Either pwm_pin or serial_port must be specified")
 
