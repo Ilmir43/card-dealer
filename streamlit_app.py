@@ -20,14 +20,25 @@ SORT_OPTIONS = [
 ]
 
 
+def _normalize_label(label: str) -> str | None:
+    """Вернуть корректную запись названия карты или ``None``."""
+    cleaned = label.strip()
+    for known in CardClasses.LABELS:
+        if cleaned.lower() == known.lower():
+            return known
+    return None
+
+
 def load_cards(csv_path: Path = Path("cards.csv")) -> list[str]:
-    """Load card labels from ``cards.csv`` or use default deck."""
+    """Загрузить список карт из ``cards.csv`` или вернуть колоду по умолчанию."""
     if csv_path.exists():
         df = pd.read_csv(csv_path)
         if "labels" in df.columns:
             labels = df["labels"].dropna().astype(str).tolist()
         else:
             labels = df.iloc[:, 0].dropna().astype(str).tolist()
+        normalized = [_normalize_label(l) for l in labels]
+        labels = [l for l in normalized if l]
         if labels:
             return labels
     return list(CardClasses.LABELS)
