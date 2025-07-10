@@ -56,7 +56,7 @@ def main() -> None:
             st.image(file, caption=f"Карта {idx + 1}")
             if st.button("Распознать и раздать", key=f"deal_{idx}"):
                 deal_card(file, int(players))
-                st.experimental_rerun()
+                st.rerun()
         else:
             st.success("Все карты обработаны")
 
