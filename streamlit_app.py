@@ -1,4 +1,3 @@
-import random
 from pathlib import Path
 
 import pandas as pd
@@ -46,10 +45,9 @@ def init_state() -> None:
 
 
 def deal_cards() -> None:
-    """Distribute cards randomly between players."""
+    """Раздать карты игрокам в указанном порядке."""
     state = st.session_state
     deck = state.deck.copy()
-    random.shuffle(deck)
     total = state.players * state.cards_per_player
     if total > len(deck):
         total = len(deck)
@@ -91,9 +89,27 @@ def render_set_cards() -> None:
     st.write(f"Карт на игрока: {st.session_state.cards_per_player}")
 
 
+def render_deck_config() -> None:
+    """Overlay for arranging the deck order with card icons."""
+    with st.expander("Порядок колоды", expanded=False):
+        deck = st.multiselect(
+            "Выберите карты по порядку",
+            CardClasses.LABELS,
+            default=st.session_state.deck,
+            format_func=CardClasses.label_to_icon,
+            key="deck_order",
+        )
+        if deck:
+            st.session_state.deck = list(deck)
+            icons = [CardClasses.label_to_icon(c) for c in deck]
+            st.write("Колода:", " ".join(icons))
+
+
+
 def render_deal() -> None:
     for i, hand in enumerate(st.session_state.distributed_cards, 1):
-        st.write(f"Игрок {i}: {', '.join(hand)}")
+        icons = [CardClasses.label_to_icon(c) for c in hand]
+        st.write(f"Игрок {i}: {' '.join(icons)}")
 
 
 def render_sort_menu() -> None:
@@ -106,7 +122,8 @@ def render_sort_menu() -> None:
 def render_sorted() -> None:
     st.write(f"Сортировка: {SORT_OPTIONS[st.session_state.sort_mode]}")
     for i, hand in enumerate(sorted_hands(), 1):
-        st.write(f"Игрок {i}: {', '.join(hand)}")
+        icons = [CardClasses.label_to_icon(c) for c in hand]
+        st.write(f"Игрок {i}: {' '.join(icons)}")
 
 
 def render_screen() -> None:
@@ -178,6 +195,8 @@ def handle_buttons(up: bool, down: bool, left: bool, right: bool, ok: bool) -> N
 def main() -> None:
     st.set_page_config(page_title="Card Device Emulator")
     init_state()
+
+    render_deck_config()
 
     row_up = st.columns(3)
     up = row_up[1].button("🔼 Вверх", key="btn_up")
