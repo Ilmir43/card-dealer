@@ -7,20 +7,32 @@
 ## Структура проекта
 
 ```
-card_dealer/            # Python-пакет с исходным кодом
-    __init__.py
-    camera.py           # захват изображений с камеры
-    recognizer.py       # простое распознавание карт по шаблонам
-    servo_controller.py # управление сервоприводом
-    main.py             # пример запуска
-
-dataset/                # изображения карт и временные снимки
-generate_embeddings.py  # создание базы эмбеддингов
-recognize_card.py       # распознавание карты по эмбеддингам
-streamlit_capture.py    # сбор изображений через камеру
-validate_crops.py       # проверка качества обрезки
-model.py                # архитектура нейронной сети
-utils.py                # утилиты сохранения модели
+card_sorter/
+├── main.py                  # Главная точка входа
+├── config/
+│   └── settings.py          # Настройки камеры и устройства
+├── core/
+│   ├── interfaces.py        # Базовые интерфейсы
+│   └── deck.py              # Утилиты для колоды
+├── data/
+│   ├── cards.py             # Сведения о картах
+│   ├── loader.py            # Загрузка CSV
+│   └── updater.py           # Обновление данных
+├── devices/
+│   ├── camera.py            # Работа с камерой
+│   └── servo_controller.py  # Управление сервоприводом
+├── models/
+│   ├── base_model.py        # Архитектура сети
+│   ├── type_classifier.py   # Классификатор типа карты
+│   ├── template_matcher.py  # Сопоставление по шаблону
+│   └── factory.py           # Фабрика моделей
+├── recognition/
+│   ├── recognizer.py        # Логика распознавания
+│   └── sorter.py            # Сортировка карт по играм
+├── ui/
+│   ├── dashboard.py         # Веб-интерфейс
+│   └── controls.py          # Компоненты управления
+└── datasets/                # Данные для обучения
 ```
 
 ## Установка
@@ -39,7 +51,7 @@ pip install -r requirements.txt
 
 ## Конфигурация камеры
 
-Модуль `card_dealer.camera` предоставляет функцию `capture_image`, снимающую кадр с устройства `0` (обычно `/dev/video0`) в разрешении **320x180**. На macOS с чипом M1 можно передать параметр `api_preference=cv2.CAP_AVFOUNDATION`, чтобы задействовать встроенную камеру. Параметр `camera_settings` позволяет управлять яркостью, контрастом и другими свойствами камеры.
+Модуль `card_sorter.camera` предоставляет функцию `capture_image`, снимающую кадр с устройства `0` (обычно `/dev/video0`) в разрешении **320x180**. На macOS с чипом M1 можно передать параметр `api_preference=cv2.CAP_AVFOUNDATION`, чтобы задействовать встроенную камеру. Параметр `camera_settings` позволяет управлять яркостью, контрастом и другими свойствами камеры.
 Функция `stream_frames` использует те же параметры и позволяет получать видео для веб‑страницы `/live`. Для записи ролика предусмотрена функция `record_video`.
 Функция `find_card` выделяет карту на переданном кадре и возвращает обрезанное изображение либо `None`, если карта не найдена. При просмотре `/live` распознавание выполняется именно по такому кадру.
 
@@ -55,7 +67,7 @@ pip install -r requirements.txt
 
 ### Серво
 
-`card_dealer.servo_controller` позволяет управлять сервомотором двумя способами:
+`card_sorter.servo_controller` позволяет управлять сервомотором двумя способами:
 
 1. **GPIO PWM** — укажите номер GPIO‑пина при создании `ServoController`.
 2. **Последовательный порт** — укажите имя порта (например, `/dev/ttyUSB0`).
@@ -67,10 +79,10 @@ pip install -r requirements.txt
 
 ```python
 from pathlib import Path
-from card_dealer.camera import capture_image
+from card_sorter.camera import capture_image
 import cv2
-from card_dealer.recognizer import recognize_card
-from card_dealer.camera import find_card
+from card_sorter.recognizer import recognize_card
+from card_sorter.camera import find_card
 
 # Для macOS можно указать api_preference=cv2.CAP_AVFOUNDATION
 img = capture_image(Path("test.png"), api_preference=cv2.CAP_AVFOUNDATION)
@@ -85,7 +97,7 @@ else:
 Для выдачи карты сервоприводом на GPIO‑пине `11`:
 
 ```python
-from card_dealer.servo_controller import ServoController
+from card_sorter.servo_controller import ServoController
 
 controller = ServoController(pwm_pin=11)
 controller.dispense_card()
@@ -180,7 +192,7 @@ streamlit run streamlit_app.py
 Для работы требуется файл `model.json`, в котором указано соответствие
 названий карт их индексам. Названия могут быть записаны в любом регистре –
 приложение сопоставит их со стандартными без учёта регистра. Если файл
-отсутствует, используется стандартная колода из `card_dealer.cards`.
+отсутствует, используется стандартная колода из `card_sorter.cards`.
 
 Приложение поддерживает два режима раздачи: **«Все карты сразу»** и **«По одной»**.
 Оставшиеся после раздачи карты отображаются отдельно, чтобы их можно было

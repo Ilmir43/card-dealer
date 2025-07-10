@@ -1,4 +1,4 @@
-from card_dealer.servo_controller import ServoController, _HardwareInterface
+from card_sorter.devices.servo_controller import ServoController, _HardwareInterface
 
 class DummyDriver(_HardwareInterface):
     def __init__(self):
