@@ -63,7 +63,11 @@ def _load_model(model_path: str, device: str) -> tuple[torch.nn.Module, dict[int
     else:
         idx_to_class = {i: f"class_{i}" for i in range(num_classes)}
 
-    model = create_model(num_classes=num_classes)
+    # Determine the type of classification head expected by the state dict
+    state_keys = set(state.keys())
+    simple_head = "fc.weight" in state_keys and not any(k.startswith("fc.0") for k in state_keys)
+
+    model = create_model(num_classes=num_classes, simple_head=simple_head)
     model.load_state_dict(state, strict=False)
     model.to(device)
     model.eval()
