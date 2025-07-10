@@ -6,7 +6,7 @@ import card_sorter.recognition.recognizer as recognizer
 
 
 def test_save_labeled_image_rejects_bad_label(tmp_path, monkeypatch):
-    monkeypatch.setattr(recognizer, "DATASET_DIR", tmp_path / "dataset")
+    monkeypatch.setattr(recognizer.DEFAULT_RECOGNIZER, "dataset_dir", tmp_path / "dataset")
     img = tmp_path / "img.png"
     img.write_text("img")
 
@@ -58,8 +58,8 @@ def test_multiple_templates(monkeypatch, tmp_path):
 
     dummy_cv2 = DummyCV2()
     monkeypatch.setattr(recognizer, "cv2", dummy_cv2)
-    monkeypatch.setattr(recognizer, "DATASET_DIR", dataset)
-    monkeypatch.setattr(recognizer, "_TEMPLATES", None)
+    monkeypatch.setattr(recognizer.DEFAULT_RECOGNIZER, "dataset_dir", dataset)
+    monkeypatch.setattr(recognizer.DEFAULT_RECOGNIZER, "_templates", None)
 
     target = tmp_path / "target.png"
     target.write_text("img")
@@ -79,8 +79,8 @@ def test_recognize_card_array(monkeypatch, tmp_path):
 
     dummy_cv2 = DummyCV2()
     monkeypatch.setattr(recognizer, "cv2", dummy_cv2)
-    monkeypatch.setattr(recognizer, "DATASET_DIR", dataset)
-    monkeypatch.setattr(recognizer, "_TEMPLATES", None)
+    monkeypatch.setattr(recognizer.DEFAULT_RECOGNIZER, "dataset_dir", dataset)
+    monkeypatch.setattr(recognizer.DEFAULT_RECOGNIZER, "_templates", None)
 
     image = DummyImage("target")
     result = recognizer.recognize_card_array(image)
@@ -100,8 +100,8 @@ def test_recognize_card_no_match(monkeypatch, tmp_path):
 
     dummy_cv2 = LowScoreCV2()
     monkeypatch.setattr(recognizer, "cv2", dummy_cv2)
-    monkeypatch.setattr(recognizer, "DATASET_DIR", dataset)
-    monkeypatch.setattr(recognizer, "_TEMPLATES", None)
+    monkeypatch.setattr(recognizer.DEFAULT_RECOGNIZER, "dataset_dir", dataset)
+    monkeypatch.setattr(recognizer.DEFAULT_RECOGNIZER, "_templates", None)
 
     target = tmp_path / "target.png"
     target.write_text("img")

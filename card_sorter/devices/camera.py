@@ -17,17 +17,19 @@ _PROP_MAP: Dict[str, int] = {
     "gain": cv2.CAP_PROP_GAIN if cv2 else 14,
 }
 
-# Default capture resolution. Lower values reduce CPU load and help
-# when the camera cannot handle high resolutions.
-DEFAULT_WIDTH = 320
-DEFAULT_HEIGHT = 180
+from card_sorter.config import CameraSettings
+
+# Default camera settings
+DEFAULT_SETTINGS = CameraSettings()
 
 
-def _apply_settings(cap: Any, settings: Dict[str, Any] | None) -> None:
+def _apply_settings(cap: Any, settings: CameraSettings | None) -> None:
     """Apply camera property settings if provided."""
     if not settings:
         return
-    for name, value in settings.items():
+    for name, value in settings.__dict__.items():
+        if name in {"width", "height"} or value is None:
+            continue
         prop = _PROP_MAP.get(name)
         if prop is not None:
             cap.set(prop, value)
@@ -120,7 +122,7 @@ def capture_image(
     output_path: Path,
     device_index: int = 0,
     api_preference: int | None = None,
-    camera_settings: Dict[str, Any] | None = None,
+    settings: CameraSettings | None = None,
 ) -> Path:
     """Capture a single frame from the specified camera device.
 
@@ -128,9 +130,9 @@ def capture_image(
     ----------
     output_path:
         File where the captured image will be stored.
-    camera_settings:
-        Optional dictionary mapping property names (``brightness``, ``contrast``,
-        ``saturation``, ``hue``, ``gain``) to numeric values.
+    settings:
+        ``CameraSettings`` instance describing resolution and additional
+        properties such as ``brightness`` or ``contrast``.
 
     Returns
     -------
@@ -159,9 +161,11 @@ def capture_image(
         raise RuntimeError("Unable to open camera device")
 
     # Configure resolution
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, DEFAULT_WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DEFAULT_HEIGHT)
-    _apply_settings(cap, camera_settings)
+    if settings is None:
+        settings = DEFAULT_SETTINGS
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
+    _apply_settings(cap, settings)
 
     success, frame = cap.read()
     cap.release()
@@ -177,7 +181,7 @@ def capture_image(
 def stream_frames(
     device_index: int = 0,
     api_preference: int | None = None,
-    camera_settings: Dict[str, Any] | None = None,
+    settings: CameraSettings | None = None,
 ) -> Generator["cv2.typing.MatLike", None, None]:
     """Yield frames from the specified camera as numpy arrays.
 
@@ -187,9 +191,8 @@ def stream_frames(
         Index of the camera device.
     api_preference:
         Optional backend API preference passed to :func:`cv2.VideoCapture`.
-    camera_settings:
-        Optional dictionary mapping property names (``brightness``, ``contrast``,
-        ``saturation``, ``hue``, ``gain``) to numeric values.
+    settings:
+        ``CameraSettings`` instance describing additional camera properties.
 
     Yields
     ------
@@ -208,9 +211,11 @@ def stream_frames(
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera device")
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, DEFAULT_WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DEFAULT_HEIGHT)
-    _apply_settings(cap, camera_settings)
+    if settings is None:
+        settings = DEFAULT_SETTINGS
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
+    _apply_settings(cap, settings)
 
     try:
         while True:
@@ -228,7 +233,7 @@ def record_video(
     fps: int = 30,
     device_index: int = 0,
     api_preference: int | None = None,
-    camera_settings: Dict[str, Any] | None = None,
+    settings: CameraSettings | None = None,
 ) -> Path:
     """Record a short video clip from the camera.
 
@@ -244,9 +249,8 @@ def record_video(
         Index of the camera device.
     api_preference:
         Optional backend API preference passed to :func:`cv2.VideoCapture`.
-    camera_settings:
-        Optional dictionary mapping property names (``brightness``, ``contrast``,
-        ``saturation``, ``hue``, ``gain``) to numeric values.
+    settings:
+        ``CameraSettings`` instance describing additional camera properties.
 
     Returns
     -------
@@ -264,12 +268,16 @@ def record_video(
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera device")
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, DEFAULT_WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DEFAULT_HEIGHT)
-    _apply_settings(cap, camera_settings)
+    if settings is None:
+        settings = DEFAULT_SETTINGS
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
+    _apply_settings(cap, settings)
 
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(output_path), fourcc, fps, (DEFAULT_WIDTH, DEFAULT_HEIGHT))
+    writer = cv2.VideoWriter(
+        str(output_path), fourcc, fps, (settings.width, settings.height)
+    )
     if not writer.isOpened():
         cap.release()
         raise RuntimeError("Unable to open video writer")
