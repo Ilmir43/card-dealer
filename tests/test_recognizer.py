@@ -2,7 +2,7 @@ import pytest
 
 from pathlib import Path
 
-import card_dealer.recognizer as recognizer
+import card_sorter.recognition.recognizer as recognizer
 
 
 def test_save_labeled_image_rejects_bad_label(tmp_path, monkeypatch):

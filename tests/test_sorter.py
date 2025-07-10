@@ -1,4 +1,4 @@
-from card_dealer.sorter import is_card_back, sort_by_back
+from card_sorter.recognition.sorter import is_card_back, sort_by_back
 
 
 def _dummy_classifier(img):

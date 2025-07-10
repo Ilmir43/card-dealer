@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import card_dealer.camera as camera
+import card_sorter.devices.camera as camera
 
 
 class DummyVideoCapture:

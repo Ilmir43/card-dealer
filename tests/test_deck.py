@@ -1,10 +1,10 @@
-from card_dealer.deck import (
+from card_sorter.core.deck import (
     deduplicate,
     exclude_cards,
     count_cards,
     find_missing_cards,
 )
-from card_dealer.cards import CardClasses
+from card_sorter.data.cards import CardClasses
 
 
 def test_deduplicate_preserves_order():
