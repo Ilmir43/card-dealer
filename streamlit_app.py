@@ -8,8 +8,14 @@ from card_dealer.cards import CardClasses
 MENU_ITEMS = [
     "Настроить количество игроков",
     "Настроить количество карт на игрока",
+    "Выбрать режим раздачи",
     "Начать раздачу",
     "Сортировка",
+]
+
+DEAL_MODES = [
+    "Все карты сразу",
+    "По одной",
 ]
 
 SORT_OPTIONS = [
@@ -52,23 +58,33 @@ def init_state() -> None:
     state.setdefault("players", 2)
     state.setdefault("cards_per_player", 1)
     state.setdefault("distributed_cards", [])
+    state.setdefault("leftover_deck", [])
     state.setdefault("sort_mode", 0)
+    state.setdefault("deal_mode", 0)
+    state.setdefault("unknown_deck_msg", "")
     state.setdefault("deck", load_cards())
 
 
 def deal_cards() -> None:
     """Раздать карты игрокам в указанном порядке."""
     state = st.session_state
-    deck = state.deck.copy()
-    total = state.players * state.cards_per_player
-    if total > len(deck):
-        total = len(deck)
-    hands = []
-    idx = 0
-    for _ in range(state.players):
-        hand = deck[idx : idx + state.cards_per_player]
-        hands.append(hand)
-        idx += state.cards_per_player
+    deck = list(state.deck)
+    hands = [[] for _ in range(state.players)]
+    state.unknown_deck_msg = "Количество карт в колоде заранее неизвестно"
+
+    if state.deal_mode == 0:  # все карты сразу
+        for i in range(state.players):
+            for _ in range(state.cards_per_player):
+                if deck:
+                    hands[i].append(deck.pop(0))
+    else:  # по одной
+        while any(len(h) < state.cards_per_player for h in hands) and deck:
+            for h in hands:
+                if len(h) < state.cards_per_player and deck:
+                    h.append(deck.pop(0))
+
+    state.leftover_deck = deck
+    state.deck = deck
     state.distributed_cards = hands
     state.screen = "deal"
 
@@ -101,6 +117,10 @@ def render_set_cards() -> None:
     st.write(f"Карт на игрока: {st.session_state.cards_per_player}")
 
 
+def render_set_mode() -> None:
+    st.write(f"Режим раздачи: {DEAL_MODES[st.session_state.deal_mode]}")
+
+
 def render_deck_config() -> None:
     """Overlay for arranging the deck order with card icons."""
     with st.expander("Порядок колоды", expanded=False):
@@ -119,9 +139,13 @@ def render_deck_config() -> None:
 
 
 def render_deal() -> None:
+    st.write(st.session_state.unknown_deck_msg)
     for i, hand in enumerate(st.session_state.distributed_cards, 1):
         icons = [CardClasses.label_to_icon(c) for c in hand]
         st.write(f"Игрок {i}: {' '.join(icons)}")
+    if st.session_state.leftover_deck:
+        icons = [CardClasses.label_to_icon(c) for c in st.session_state.leftover_deck]
+        st.write("Лишние карты:", " ".join(icons))
 
 
 def render_sort_menu() -> None:
@@ -146,6 +170,8 @@ def render_screen() -> None:
         render_set_players()
     elif screen == "set_cards":
         render_set_cards()
+    elif screen == "set_mode":
+        render_set_mode()
     elif screen == "deal":
         render_deal()
     elif screen == "sort":
@@ -176,6 +202,11 @@ def handle_buttons(up: bool, down: bool, left: bool, right: bool, ok: bool) -> N
             state.cards_per_player -= 1
         if right:
             state.cards_per_player += 1
+    elif state.screen == "set_mode":
+        if left:
+            state.deal_mode = (state.deal_mode - 1) % len(DEAL_MODES)
+        if right:
+            state.deal_mode = (state.deal_mode + 1) % len(DEAL_MODES)
 
     if state.screen == "main_menu" and ok:
         idx = state.menu_index
@@ -185,13 +216,17 @@ def handle_buttons(up: bool, down: bool, left: bool, right: bool, ok: bool) -> N
         elif idx == 1:
             state.screen = "set_cards"
         elif idx == 2:
-            deal_cards()
+            state.screen = "set_mode"
         elif idx == 3:
+            deal_cards()
+        elif idx == 4:
             state.menu_index = state.sort_mode
             state.screen = "sort"
     elif state.screen == "set_players" and ok:
         state.screen = "main_menu"
     elif state.screen == "set_cards" and ok:
+        state.screen = "main_menu"
+    elif state.screen == "set_mode" and ok:
         state.screen = "main_menu"
     elif state.screen == "deal" and ok:
         state.screen = "main_menu"
